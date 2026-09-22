@@ -13,12 +13,15 @@ Adverts Rewards, and Diabetic Buddy.
 
 | Path | Purpose |
 |------|---------|
-| `/` | Company homepage |
-| `/products` | Product briefs for every Koliath app |
-| `/reward` | Google login + points dashboard + gift catalog |
+| `/` | Company homepage and app hub |
+| `/products` | App briefs, download CTAs, list-your-app |
+| `/earn` | Referral points, Google login, gift catalog |
+| `/contact` | Contact form and list/host-your-app CTA |
 | `/service`, `/about`, `/careers`, `/blog` | Studio pages |
 
-`/rewards` and `/referrals` redirect to the same reward experience.
+`/reward`, `/rewards`, and `/referrals` redirect to `/earn` and keep `?ref=` query strings.
+
+Local commands and the production SPA fallback are in [LOCAL_TESTING.md](LOCAL_TESTING.md).
 
 ## Referral rules (server-enforced)
 
@@ -39,6 +42,8 @@ Body: { referrerCode, referredEmail, deviceId, sourceApp, event }
 ```
 
 ## Local setup
+
+Step-by-step commands and the URLs to click are in [LOCAL_TESTING.md](LOCAL_TESTING.md). From the repo root: `npm install`, then `npm run dev` (site) and `npm run dev:backend` (API).
 
 ### 1. Postgres
 
@@ -91,7 +96,7 @@ npm run dev
 
 ## Linking mobile apps
 
-After Google sign-in on `/reward`, apps can call (with the user’s Google ID token):
+After Google sign-in on `/earn`, apps can call (with the user’s Google ID token):
 
 ```http
 POST /api/me/link-app

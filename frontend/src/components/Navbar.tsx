@@ -6,11 +6,12 @@ const Navbar: React.FC = () => {
 
     const sections = [
         { name: "Products", path: "/products" },
-        { name: "Reward", path: "/reward" },
+        { name: "Earn", path: "/earn" },
         { name: "Services", path: "/service" },
         { name: "About", path: "/about" },
         { name: "Careers", path: "/careers" },
         { name: "Blog", path: "/blog" },
+        { name: "Contact", path: "/contact" },
     ]
 
     return (
@@ -23,7 +24,7 @@ const Navbar: React.FC = () => {
                     Koliath
                 </Link>
 
-                <nav className="hidden md:flex items-center gap-1">
+                <nav className="hidden lg:flex items-center gap-1">
                     {sections.map((section) => (
                         <NavLink
                             key={section.name}
@@ -40,16 +41,16 @@ const Navbar: React.FC = () => {
                         </NavLink>
                     ))}
                     <Link
-                        to="/reward"
-                        className="ml-3 text-sm px-4 py-2 rounded-full bg-[var(--ink)] text-white hover:opacity-90 transition-opacity"
+                        to="/contact?topic=list-app"
+                        className="ml-2 text-sm px-4 py-2 rounded-full bg-[var(--ink)] text-white hover:opacity-90 transition-opacity whitespace-nowrap"
                     >
-                        Sign in
+                        List your app
                     </Link>
                 </nav>
 
                 <button
                     type="button"
-                    className="md:hidden p-2 text-[var(--ink)]"
+                    className="lg:hidden p-2 text-[var(--ink)]"
                     aria-label="Menu"
                     onClick={() => setOpen((v) => !v)}
                 >
@@ -65,7 +66,7 @@ const Navbar: React.FC = () => {
             </div>
 
             {open && (
-                <div className="md:hidden border-t border-[var(--line)] bg-[var(--bg)] px-6 py-4 space-y-1">
+                <div className="lg:hidden border-t border-[var(--line)] bg-[var(--bg)] px-6 py-4 space-y-1">
                     {sections.map((section) => (
                         <NavLink
                             key={section.name}
@@ -80,6 +81,13 @@ const Navbar: React.FC = () => {
                             {section.name}
                         </NavLink>
                     ))}
+                    <Link
+                        to="/contact?topic=list-app"
+                        onClick={() => setOpen(false)}
+                        className="block px-3 py-3 rounded-xl text-sm bg-[var(--ink)] text-white text-center"
+                    >
+                        List your app
+                    </Link>
                 </div>
             )}
         </header>

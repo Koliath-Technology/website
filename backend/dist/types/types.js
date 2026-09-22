@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.qualifyReferralSchema = exports.linkAppAccountSchema = exports.googleSessionSchema = exports.referralTrackingSchema = exports.registerReferralSchema = exports.referralEventSchema = exports.redeemRewardSchema = exports.referralStatsQuerySchema = exports.careersSchema = void 0;
+exports.qualifyReferralSchema = exports.contactInquirySchema = exports.linkAppAccountSchema = exports.googleSessionSchema = exports.referralTrackingSchema = exports.registerReferralSchema = exports.referralEventSchema = exports.redeemRewardSchema = exports.referralStatsQuerySchema = exports.careersSchema = void 0;
 const zod_1 = require("zod");
 exports.careersSchema = zod_1.z.object({
     name: zod_1.z
@@ -55,6 +55,13 @@ exports.linkAppAccountSchema = zod_1.z.object({
         .max(20)
         .transform((c) => c.toUpperCase())
         .optional(),
+});
+exports.contactInquirySchema = zod_1.z.object({
+    name: zod_1.z.string().trim().min(2).max(80),
+    email: zod_1.z.email(),
+    topic: zod_1.z.enum(["general", "list-app", "download", "press", "careers"]),
+    message: zod_1.z.string().trim().min(10).max(2000),
+    app: zod_1.z.string().trim().max(80).optional(),
 });
 exports.qualifyReferralSchema = zod_1.z.object({
     referrerCode: zod_1.z.string().min(4).max(20).transform((c) => c.toUpperCase()),

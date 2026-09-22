@@ -1,6 +1,9 @@
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import { motion } from "framer-motion"
 import { ArrowRight } from "lucide-react"
+import { Button } from "./ui/button"
+import { useReferralTracker } from "../hooks/useReferralTracker"
+import { downloadUrls, withReferral } from "../lib/downloads"
 
 const products = [
     {
@@ -57,8 +60,8 @@ export function ProductsShowcase({ compact = false }: { compact?: boolean }) {
                         Products shipping from Koliath
                     </h2>
                     <p className="text-lg text-[var(--muted)] leading-relaxed">
-                        Consumer apps and B2B tools bound by one identity and one rewards
-                        platform at koliath.in/reward.
+                        Download Koliath apps from this hub. Referral codes on the link stay
+                        with the visit, and points are tracked on Earn.
                     </p>
                 </div>
 
@@ -104,11 +107,38 @@ export function ProductsShowcase({ compact = false }: { compact?: boolean }) {
 }
 
 export default function ProductsPage() {
+    const navigate = useNavigate()
+    const { refCode, trackEvent } = useReferralTracker()
+
+    const onDownload = (slug: string) => {
+        void trackEvent("install_attempt")
+        const external = downloadUrls[slug]
+        if (external) {
+            window.open(withReferral(external, refCode), "_blank", "noopener,noreferrer")
+            return
+        }
+        if (slug === "diabetic-buddy") {
+            const search = refCode ? `?ref=${encodeURIComponent(refCode)}` : ""
+            navigate(`/diabetic-app${search}`)
+            return
+        }
+        navigate(`/contact?topic=download&app=${encodeURIComponent(slug)}`)
+    }
+
     return (
         <div className="min-h-screen pt-20">
             <ProductsShowcase />
 
-            <section className="px-6 pb-24" id="sapient">
+            {refCode && (
+                <div className="px-6 -mt-6 mb-4">
+                    <p className="max-w-6xl mx-auto text-sm rounded-2xl border border-[var(--line)] bg-[var(--accent-soft)] px-5 py-3 text-[var(--ink)]">
+                        Referral code <span className="font-mono font-semibold">{refCode}</span> is
+                        saved for this visit. Download buttons attribute the install attempt to it.
+                    </p>
+                </div>
+            )}
+
+            <section className="px-6 pb-8" id="sapient">
                 <div className="max-w-6xl mx-auto space-y-16">
                     <ProductDeepDive
                         id="sapient"
@@ -120,6 +150,8 @@ export default function ProductsPage() {
                             "Salons, Think Dates, Book Swap, Icebreakers",
                             "Referral rewards after one full day of use",
                         ]}
+                        downloadLabel={downloadUrls.sapient ? "Download Sapient" : "Request Sapient"}
+                        onDownload={() => onDownload("sapient")}
                     />
                     <ProductDeepDive
                         id="adverts"
@@ -131,6 +163,8 @@ export default function ProductsPage() {
                             "Razorpay orders and campaign delivery APIs",
                             "Referral rewards after a successful purchase",
                         ]}
+                        downloadLabel={downloadUrls.adverts ? "Download Adverts" : "Request Adverts"}
+                        onDownload={() => onDownload("adverts")}
                     />
                     <ProductDeepDive
                         id="adverts-rewards"
@@ -138,6 +172,12 @@ export default function ProductsPage() {
                         headline="Watch. Earn. Redeem."
                         body="The viewer loop for Adverts: verified watches credit a ledger users can redeem — kept separate from brand and talent surfaces for security."
                         points={["Verified watch tickets", "Points ledger", "INR estimate & redeem gates"]}
+                        downloadLabel={
+                            downloadUrls["adverts-rewards"]
+                                ? "Download Adverts Rewards"
+                                : "Request Adverts Rewards"
+                        }
+                        onDownload={() => onDownload("adverts-rewards")}
                     />
                     <ProductDeepDive
                         id="advert-cohort"
@@ -145,6 +185,10 @@ export default function ProductsPage() {
                         headline="Talent control of likeness"
                         body="Approve or decline brand requests, set still/video/campaign rates, pause inbound work, and track paid vs pipeline earnings."
                         points={["Request inbox", "Rate cards", "Earnings visibility"]}
+                        downloadLabel={
+                            downloadUrls["advert-cohort"] ? "Download Advert Cohort" : "Request Advert Cohort"
+                        }
+                        onDownload={() => onDownload("advert-cohort")}
                     />
                     <ProductDeepDive
                         id="diabetic-buddy"
@@ -156,7 +200,29 @@ export default function ProductsPage() {
                             "Pet leveling & streaks",
                             "Shared Koliath referral backend",
                         ]}
+                        downloadLabel="Download Diabetic Buddy"
+                        onDownload={() => onDownload("diabetic-buddy")}
                     />
+                </div>
+            </section>
+
+            <section className="px-6 pb-24">
+                <div className="max-w-6xl mx-auto rounded-[2rem] border border-[var(--line)] bg-white/80 p-8 md:p-12">
+                    <p className="text-sm tracking-[0.18em] uppercase text-[var(--accent)] mb-3">
+                        For businesses
+                    </p>
+                    <h2 className="font-display text-3xl md:text-4xl font-semibold mb-4">
+                        List or host your app
+                    </h2>
+                    <p className="text-[var(--muted)] leading-relaxed max-w-2xl mb-6">
+                        The hub is not only for Koliath’s own products. Businesses can list an app
+                        here so people discover it, download it, and land through a referral link.
+                        That is the path to more installs. Tell us the app name, store URLs, and
+                        who should own the listing.
+                    </p>
+                    <Button asChild className="rounded-full px-6 h-11">
+                        <Link to="/contact?topic=list-app">Contact us to list an app</Link>
+                    </Button>
                 </div>
             </section>
         </div>
@@ -169,12 +235,16 @@ function ProductDeepDive({
     headline,
     body,
     points,
+    downloadLabel,
+    onDownload,
 }: {
     id: string
     name: string
     headline: string
     body: string
     points: string[]
+    downloadLabel: string
+    onDownload: () => void
 }) {
     return (
         <div id={id} className="scroll-mt-28 grid md:grid-cols-2 gap-10 items-start border-t border-[var(--line)] pt-14">
@@ -182,6 +252,14 @@ function ProductDeepDive({
                 <p className="text-sm text-[var(--accent)] mb-2">{name}</p>
                 <h3 className="font-display text-3xl md:text-4xl font-semibold mb-4">{headline}</h3>
                 <p className="text-[var(--muted)] leading-relaxed text-lg">{body}</p>
+                <div className="mt-6 flex flex-wrap gap-3">
+                    <Button type="button" className="rounded-full px-6" onClick={onDownload}>
+                        {downloadLabel}
+                    </Button>
+                    <Button asChild variant="outline" className="rounded-full px-6">
+                        <Link to="/earn">Refer and earn</Link>
+                    </Button>
+                </div>
             </div>
             <ul className="space-y-3">
                 {points.map((point) => (

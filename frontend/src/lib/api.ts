@@ -1,4 +1,20 @@
-const API_ROOT = import.meta.env.VITE_API_BASE?.replace(/\/$/, "") || ""
+/**
+ * Same-origin `/api` when `VITE_API_BASE` is empty (Vite proxy in dev, reverse
+ * proxy in production). A production build never calls localhost — that value
+ * is ignored so a mis-set env cannot point the live site at a developer machine.
+ */
+function resolveApiRoot(): string {
+    const raw = (import.meta.env.VITE_API_BASE ?? "").trim().replace(/\/$/, "")
+    if (import.meta.env.PROD && /localhost|127\.0\.0\.1/i.test(raw)) {
+        console.error(
+            "VITE_API_BASE points at localhost in a production build; ignoring it and using same-origin /api."
+        )
+        return ""
+    }
+    return raw
+}
+
+export const API_ROOT = resolveApiRoot()
 
 function authHeaders(token?: string | null): HeadersInit {
     const headers: Record<string, string> = {

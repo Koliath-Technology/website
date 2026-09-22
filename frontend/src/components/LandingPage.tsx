@@ -25,25 +25,82 @@ export default function Home() {
                 whileInView="visible"
                 viewport={{ once: true, amount: 0.2 }}
                 variants={sectionVariants}
+                className="px-6 pb-4"
+            >
+                <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-5">
+                    <div className="rounded-[1.75rem] border border-[var(--line)] bg-white/80 p-8">
+                        <p className="text-sm tracking-[0.18em] uppercase text-[var(--accent)] mb-3">
+                            Company
+                        </p>
+                        <h2 className="font-display text-3xl font-semibold mb-3">The brochure</h2>
+                        <p className="text-[var(--muted)] leading-relaxed mb-6">
+                            Services, the studio story, open roles, and writing. This is Koliath
+                            Technology as a company you can hire or join.
+                        </p>
+                        <div className="flex flex-wrap gap-3 text-sm">
+                            <Link to="/about" className="underline">
+                                About
+                            </Link>
+                            <Link to="/service" className="underline">
+                                Services
+                            </Link>
+                            <Link to="/careers" className="underline">
+                                Careers
+                            </Link>
+                            <Link to="/blog" className="underline">
+                                Blog
+                            </Link>
+                        </div>
+                    </div>
+                    <div className="rounded-[1.75rem] border border-[var(--line)] bg-white/80 p-8">
+                        <p className="text-sm tracking-[0.18em] uppercase text-[var(--accent)] mb-3">
+                            App hub
+                        </p>
+                        <h2 className="font-display text-3xl font-semibold mb-3">Downloads and points</h2>
+                        <p className="text-[var(--muted)] leading-relaxed mb-6">
+                            People browse and download apps here. A referral code on the link is
+                            kept for the visit. Businesses can list an app on the hub to grow
+                            installs.
+                        </p>
+                        <div className="flex flex-wrap gap-3 text-sm">
+                            <Link to="/products" className="underline">
+                                Products
+                            </Link>
+                            <Link to="/earn" className="underline">
+                                Earn
+                            </Link>
+                            <Link to="/contact?topic=list-app" className="underline">
+                                List your app
+                            </Link>
+                        </div>
+                    </div>
+                </div>
+            </motion.section>
+
+            <motion.section
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: true, amount: 0.2 }}
+                variants={sectionVariants}
                 className="px-6 py-20"
             >
                 <div className="max-w-6xl mx-auto rounded-[2rem] border border-[var(--line)] overflow-hidden relative reward-band">
                     <div className="relative z-10 p-10 md:p-14 max-w-2xl">
                         <p className="text-sm tracking-[0.18em] uppercase text-[var(--accent)] mb-3">
-                            Rewards
+                            Earn
                         </p>
                         <h2 className="font-display text-3xl md:text-4xl font-semibold mb-4 text-[var(--ink)]">
                             Refer across every Koliath app
                         </h2>
                         <p className="text-[var(--muted)] mb-8 leading-relaxed">
                             One Google login. Separate qualification rules for Sapient, Adverts,
-                            Diabetic Buddy, and more. Redeem gift cards when points confirm.
+                            Diabetic Buddy, and more. Points show up on Earn when they confirm.
                         </p>
                         <Link
-                            to="/reward"
+                            to="/earn"
                             className="inline-flex items-center rounded-full bg-[var(--ink)] text-white px-6 py-3 text-sm hover:opacity-90 transition-opacity"
                         >
-                            Go to /reward
+                            Open Earn
                         </Link>
                     </div>
                 </div>
@@ -71,8 +128,8 @@ export function SiteFooter() {
                             Koliath
                         </h3>
                         <p className="max-w-sm leading-relaxed">
-                            AI product studio shipping Sapient, Adverts, and Diabetic Buddy —
-                            with a shared rewards identity on koliath.in.
+                            Company site and app hub for Sapient, Adverts, and Diabetic Buddy.
+                            Download apps, earn points by referring, or list an app you want hosted.
                         </p>
                     </div>
                     <div>
@@ -84,8 +141,8 @@ export function SiteFooter() {
                                 </Link>
                             </li>
                             <li>
-                                <Link to="/reward" className="hover:text-[var(--ink)]">
-                                    Reward
+                                <Link to="/earn" className="hover:text-[var(--ink)]">
+                                    Earn
                                 </Link>
                             </li>
                             <li>
@@ -98,11 +155,26 @@ export function SiteFooter() {
                                     About
                                 </Link>
                             </li>
+                            <li>
+                                <Link to="/blog" className="hover:text-[var(--ink)]">
+                                    Blog
+                                </Link>
+                            </li>
                         </ul>
                     </div>
                     <div>
                         <h4 className="font-semibold text-[var(--ink)] mb-4">Contact</h4>
                         <ul className="space-y-2">
+                            <li>
+                                <Link to="/contact" className="hover:text-[var(--ink)]">
+                                    Contact us
+                                </Link>
+                            </li>
+                            <li>
+                                <Link to="/contact?topic=list-app" className="hover:text-[var(--ink)]">
+                                    List your app
+                                </Link>
+                            </li>
                             <li>
                                 <a href="mailto:hello@koliath.in" className="hover:text-[var(--ink)]">
                                     hello@koliath.in

@@ -16,6 +16,7 @@ import {
     googleSessionSchema,
     linkAppAccountSchema,
     qualifyReferralSchema,
+    contactInquirySchema,
 } from "./types/types"
 import {
     createCareer,
@@ -86,6 +87,37 @@ app.get("/health", (_req, res) => {
 
 app.get("/api/referral-rules", (_req, res) => {
     res.status(200).json({ rules: listPublicRules() })
+})
+
+const contactLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    message: { success: false, message: "Too many contact requests" },
+})
+
+/**
+ * Accepts brochure / hub inquiries without a mailbox integration.
+ * The process log is the dev inbox. Production should tail these logs or
+ * forward them until an email provider is configured — no secrets required.
+ */
+app.post("/api/contact", contactLimiter, (req, res) => {
+    const body = contactInquirySchema.safeParse(req.body)
+    if (!body.success) {
+        return res.status(400).json({ success: false, message: "Check the form and try again." })
+    }
+
+    console.log(
+        JSON.stringify({
+            type: "contact_inquiry",
+            at: new Date().toISOString(),
+            ...body.data,
+        })
+    )
+
+    res.status(202).json({
+        success: true,
+        message: "Received. We will reply by email.",
+    })
 })
 
 app.post("/careers", async (req, res) => {

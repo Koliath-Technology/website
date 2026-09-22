@@ -1,4 +1,4 @@
-import { Routes, Route } from "react-router-dom"
+import { Navigate, Route, Routes, useLocation } from "react-router-dom"
 import Home, { SiteFooter } from "./components/LandingPage"
 import BlogComponent from "./components/Blog"
 import Navbar from "./components/Navbar"
@@ -8,7 +8,13 @@ import ServicePage from "./components/ServicePage"
 import DiabeticAppPage from "./components/DiabeticAppPage"
 import RewardPage from "./components/RewardPage"
 import ProductsPage from "./components/ProductsPage"
+import ContactPage from "./components/ContactPage"
 import { useReferralTracker } from "./hooks/useReferralTracker"
+
+function RedirectPreserve({ to }: { to: string }) {
+    const { search, hash } = useLocation()
+    return <Navigate to={{ pathname: to, search, hash }} replace />
+}
 
 const App: React.FC = () => {
     useReferralTracker()
@@ -25,9 +31,11 @@ const App: React.FC = () => {
                     <Route path="/service" element={<ServicePage />} />
                     <Route path="/products" element={<ProductsPage />} />
                     <Route path="/diabetic-app" element={<DiabeticAppPage />} />
-                    <Route path="/reward" element={<RewardPage />} />
-                    <Route path="/rewards" element={<RewardPage />} />
-                    <Route path="/referrals" element={<RewardPage />} />
+                    <Route path="/earn" element={<RewardPage />} />
+                    <Route path="/contact" element={<ContactPage />} />
+                    <Route path="/reward" element={<RedirectPreserve to="/earn" />} />
+                    <Route path="/rewards" element={<RedirectPreserve to="/earn" />} />
+                    <Route path="/referrals" element={<RedirectPreserve to="/earn" />} />
                     <Route path="*" element={<Home />} />
                 </Routes>
             </main>

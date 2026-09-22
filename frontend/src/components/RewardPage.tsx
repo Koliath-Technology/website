@@ -23,6 +23,13 @@ import {
     type ReferralRule,
     type Reward,
 } from "../lib/api"
+import { useReferralTracker } from "../hooks/useReferralTracker"
+
+const PREVIEW_REWARDS: Reward[] = [
+    { id: -1, title: "₹500 Flipkart Voucher", points_cost: 800, category: "Shopping" },
+    { id: -2, title: "$25 Amazon Voucher", points_cost: 1200, category: "Shopping" },
+    { id: -3, title: "Koliath Merchandise", points_cost: 1500, category: "Merchandise" },
+]
 
 export default function RewardPage() {
     const { user, idToken, loading, configured, signInWithCredential, signOut, refresh } = useAuth()
@@ -34,14 +41,28 @@ export default function RewardPage() {
     const [redeemSuccess, setRedeemSuccess] = useState<string | null>(null)
     const [copied, setCopied] = useState(false)
     const [authError, setAuthError] = useState<string | null>(null)
+    const [catalogNote, setCatalogNote] = useState<string | null>(null)
+    const { refCode } = useReferralTracker()
 
     useEffect(() => {
         Promise.all([fetchRewards(), fetchReferralRules()])
             .then(([rewardList, ruleList]) => {
-                setRewards(rewardList)
                 setRules(ruleList)
+                if (rewardList.length === 0) {
+                    setRewards(PREVIEW_REWARDS)
+                    setCatalogNote(
+                        "The live catalog is empty. These sample gifts show the Earn layout until rewards are seeded."
+                    )
+                } else {
+                    setRewards(rewardList)
+                }
             })
-            .catch(console.error)
+            .catch(() => {
+                setRewards(PREVIEW_REWARDS)
+                setCatalogNote(
+                    "Showing sample gifts because the API is offline. Start the backend to sign in, confirm points, and redeem."
+                )
+            })
             .finally(() => setLoadingRewards(false))
     }, [])
 
@@ -63,7 +84,7 @@ export default function RewardPage() {
 
     const copyCode = async () => {
         if (!user) return
-        const link = `${window.location.origin}/reward?ref=${user.globalCode}`
+        const link = `${window.location.origin}/earn?ref=${user.globalCode}`
         await navigator.clipboard.writeText(link)
         setCopied(true)
         setTimeout(() => setCopied(false), 2000)
@@ -86,7 +107,7 @@ export default function RewardPage() {
                         animate={{ opacity: 1, y: 0 }}
                         className="text-sm tracking-[0.2em] uppercase text-[var(--accent)] mb-4"
                     >
-                        Koliath Rewards
+                        Earn
                     </motion.p>
                     <motion.h1
                         initial={{ opacity: 0, y: 16 }}
@@ -94,9 +115,9 @@ export default function RewardPage() {
                         transition={{ delay: 0.05 }}
                         className="font-display text-4xl md:text-6xl font-semibold tracking-tight mb-5"
                     >
-                        One account.
+                        Share a link.
                         <br />
-                        <span className="text-[var(--accent)]">Rewards across every app.</span>
+                        <span className="text-[var(--accent)]">Earn when they qualify.</span>
                     </motion.h1>
                     <motion.p
                         initial={{ opacity: 0, y: 16 }}
@@ -108,6 +129,14 @@ export default function RewardPage() {
                         qualify in Sapient, Adverts, Diabetic Buddy, and more — under clear
                         per-app rules.
                     </motion.p>
+
+                    {refCode && !user && (
+                        <p className="text-sm mb-6 rounded-2xl border border-[var(--line)] bg-white/70 px-4 py-3 inline-block">
+                            You arrived with referral code{" "}
+                            <span className="font-mono font-semibold">{refCode}</span>. It stays on
+                            this browser for download attribution.
+                        </p>
+                    )}
 
                     {!user && (
                         <div className="flex flex-col items-center gap-4">
@@ -355,6 +384,11 @@ export default function RewardPage() {
                         <p className="text-[var(--muted)]">
                             Redeem confirmed points for vouchers and merch
                         </p>
+                        {catalogNote && (
+                            <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 max-w-xl mx-auto mt-4">
+                                {catalogNote}
+                            </p>
+                        )}
                     </div>
                     {loadingRewards ? (
                         <div className="flex justify-center py-16">
@@ -363,8 +397,9 @@ export default function RewardPage() {
                     ) : (
                         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {rewards.map((reward, i) => {
+                                const preview = reward.id < 0
                                 const canRedeem =
-                                    !!user && user.pointsAvailable >= reward.points_cost
+                                    !!user && !preview && user.pointsAvailable >= reward.points_cost
                                 return (
                                     <motion.div
                                         key={reward.id}
@@ -397,6 +432,8 @@ export default function RewardPage() {
                                                     <Loader2 className="w-4 h-4 animate-spin" />
                                                 ) : canRedeem ? (
                                                     "Redeem"
+                                                ) : reward.id < 0 ? (
+                                                    "Preview"
                                                 ) : user ? (
                                                     "Not enough points"
                                                 ) : (
@@ -421,7 +458,7 @@ export default function RewardPage() {
                             {
                                 step: "01",
                                 title: "Sign in once",
-                                text: "Google login on koliath.in/reward creates your global Koliath identity and referral code.",
+                                text: "Google login on koliath.in/earn creates your global Koliath identity and referral code.",
                             },
                             {
                                 step: "02",

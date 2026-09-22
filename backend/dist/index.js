@@ -62,6 +62,27 @@ app.get("/health", (_req, res) => {
 app.get("/api/referral-rules", (_req, res) => {
     res.status(200).json({ rules: (0, rules_1.listPublicRules)() });
 });
+const contactLimiter = (0, express_rate_limit_1.default)({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    message: { success: false, message: "Too many contact requests" },
+});
+/**
+ * Accepts brochure / hub inquiries without a mailbox integration.
+ * The process log is the dev inbox. Production should tail these logs or
+ * forward them until an email provider is configured — no secrets required.
+ */
+app.post("/api/contact", contactLimiter, (req, res) => {
+    const body = types_1.contactInquirySchema.safeParse(req.body);
+    if (!body.success) {
+        return res.status(400).json({ success: false, message: "Check the form and try again." });
+    }
+    console.log(JSON.stringify(Object.assign({ type: "contact_inquiry", at: new Date().toISOString() }, body.data)));
+    res.status(202).json({
+        success: true,
+        message: "Received. We will reply by email.",
+    });
+});
 app.post("/careers", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const body = types_1.careersSchema.safeParse(req.body);
     if (!body.success) {

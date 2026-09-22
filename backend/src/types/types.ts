@@ -64,6 +64,14 @@ export const linkAppAccountSchema = z.object({
         .optional(),
 })
 
+export const contactInquirySchema = z.object({
+    name: z.string().trim().min(2).max(80),
+    email: z.email(),
+    topic: z.enum(["general", "list-app", "download", "press", "careers"]),
+    message: z.string().trim().min(10).max(2000),
+    app: z.string().trim().max(80).optional(),
+})
+
 export const qualifyReferralSchema = z.object({
     referrerCode: z.string().min(4).max(20).transform((c) => c.toUpperCase()),
     referredEmail: z.string().email(),
