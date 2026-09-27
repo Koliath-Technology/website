@@ -1,13 +1,13 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
 import { GoogleOAuthProvider, googleLogout } from "@react-oauth/google"
-import { exchangeGoogleToken, fetchMe, type DashboardUser } from "./api"
+import { exchangeGoogleToken, fetchMe, logoutSession, type DashboardUser } from "./api"
 
-const TOKEN_KEY = "koliath_google_id_token"
+/** Removed on boot. Google ID tokens are no longer stored in localStorage. */
+const LEGACY_TOKEN_KEY = "koliath_google_id_token"
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined
 
 interface AuthContextValue {
     user: DashboardUser | null
-    idToken: string | null
     loading: boolean
     configured: boolean
     signInWithCredential: (credential: string) => Promise<void>
@@ -19,31 +19,29 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 
 function AuthInner({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<DashboardUser | null>(null)
-    const [idToken, setIdToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY))
     const [loading, setLoading] = useState(true)
 
     const refresh = useCallback(async () => {
-        const token = localStorage.getItem(TOKEN_KEY)
-        if (!token) {
+        // The session cookie is httpOnly. The CSRF cookie is set with it and is
+        // readable, so anonymous visits do not call /api/me and get a 401.
+        const hasSession = document.cookie.split("; ").some((part) => part.startsWith("koliath_csrf="))
+        if (!hasSession) {
             setUser(null)
-            setIdToken(null)
             setLoading(false)
             return
         }
         try {
-            const me = await fetchMe(token)
+            const me = await fetchMe()
             setUser(me)
-            setIdToken(token)
         } catch {
-            localStorage.removeItem(TOKEN_KEY)
             setUser(null)
-            setIdToken(null)
         } finally {
             setLoading(false)
         }
     }, [])
 
     useEffect(() => {
+        localStorage.removeItem(LEGACY_TOKEN_KEY)
         void refresh()
     }, [refresh])
 
@@ -51,8 +49,6 @@ function AuthInner({ children }: { children: React.ReactNode }) {
         setLoading(true)
         try {
             const dashboard = await exchangeGoogleToken(credential)
-            localStorage.setItem(TOKEN_KEY, credential)
-            setIdToken(credential)
             setUser(dashboard)
         } finally {
             setLoading(false)
@@ -60,23 +56,28 @@ function AuthInner({ children }: { children: React.ReactNode }) {
     }, [])
 
     const signOut = useCallback(() => {
-        googleLogout()
-        localStorage.removeItem(TOKEN_KEY)
-        setIdToken(null)
+        if (CLIENT_ID) {
+            try {
+                googleLogout()
+            } catch {
+                /* GIS may be unavailable when the client id was not baked in. */
+            }
+        }
+        localStorage.removeItem(LEGACY_TOKEN_KEY)
+        void logoutSession().catch(() => undefined)
         setUser(null)
     }, [])
 
     const value = useMemo<AuthContextValue>(
         () => ({
             user,
-            idToken,
             loading,
             configured: Boolean(CLIENT_ID),
             signInWithCredential,
             signOut,
             refresh,
         }),
-        [user, idToken, loading, signInWithCredential, signOut, refresh]
+        [user, loading, signInWithCredential, signOut, refresh]
     )
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
@@ -84,21 +85,7 @@ function AuthInner({ children }: { children: React.ReactNode }) {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!CLIENT_ID) {
-        return (
-            <AuthContext.Provider
-                value={{
-                    user: null,
-                    idToken: null,
-                    loading: false,
-                    configured: false,
-                    signInWithCredential: async () => undefined,
-                    signOut: () => undefined,
-                    refresh: async () => undefined,
-                }}
-            >
-                {children}
-            </AuthContext.Provider>
-        )
+        return <AuthInner>{children}</AuthInner>
     }
 
     return (

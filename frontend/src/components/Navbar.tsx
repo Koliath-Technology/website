@@ -1,8 +1,11 @@
 import React, { useState } from "react"
 import { NavLink, Link } from "react-router-dom"
+import { useAuth } from "../lib/auth"
 
 const Navbar: React.FC = () => {
     const [open, setOpen] = useState(false)
+    const { user, signOut } = useAuth()
+    const accountLabel = user?.displayName?.split(" ")[0] || "Account"
 
     const sections = [
         { name: "Products", path: "/products" },
@@ -40,6 +43,30 @@ const Navbar: React.FC = () => {
                             {section.name}
                         </NavLink>
                     ))}
+                    {user ? (
+                        <>
+                            <Link
+                                to="/earn"
+                                className="ml-1 text-sm px-4 py-2 rounded-full border border-[var(--ink)] text-[var(--ink)] hover:bg-black/[0.04] whitespace-nowrap"
+                            >
+                                {accountLabel}
+                            </Link>
+                            <button
+                                type="button"
+                                onClick={signOut}
+                                className="text-sm px-3 py-2 rounded-full text-[var(--ink)] hover:opacity-70"
+                            >
+                                Sign out
+                            </button>
+                        </>
+                    ) : (
+                        <Link
+                            to="/login"
+                            className="ml-1 text-sm px-4 py-2 rounded-full border border-[var(--ink)] text-[var(--ink)] hover:bg-black/[0.04] whitespace-nowrap"
+                        >
+                            Login
+                        </Link>
+                    )}
                     <Link
                         to="/contact?topic=list-app"
                         className="ml-2 text-sm px-4 py-2 rounded-full bg-[var(--ink)] text-white hover:opacity-90 transition-opacity whitespace-nowrap"
@@ -81,6 +108,35 @@ const Navbar: React.FC = () => {
                             {section.name}
                         </NavLink>
                     ))}
+                    {user ? (
+                        <>
+                            <Link
+                                to="/earn"
+                                onClick={() => setOpen(false)}
+                                className="block px-3 py-3 rounded-xl text-sm border border-[var(--ink)] text-center"
+                            >
+                                {accountLabel}
+                            </Link>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setOpen(false)
+                                    signOut()
+                                }}
+                                className="block w-full px-3 py-3 rounded-xl text-sm text-left"
+                            >
+                                Sign out
+                            </button>
+                        </>
+                    ) : (
+                        <Link
+                            to="/login"
+                            onClick={() => setOpen(false)}
+                            className="block px-3 py-3 rounded-xl text-sm border border-[var(--ink)] text-center"
+                        >
+                            Login
+                        </Link>
+                    )}
                     <Link
                         to="/contact?topic=list-app"
                         onClick={() => setOpen(false)}

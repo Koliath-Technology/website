@@ -25,6 +25,11 @@ export const config = {
         .map((s) => s.trim())
         .filter(Boolean),
     cookieSecure: isProd,
+    /**
+     * Remote Postgres defaults to accept Railway's proxy certificate.
+     * Set DATABASE_SSL_REJECT_UNAUTHORIZED=true when the certificate is trusted.
+     */
+    databaseSslRejectUnauthorized: process.env.DATABASE_SSL_REJECT_UNAUTHORIZED === "true",
 }
 
 export const POINTS_PER_REFERRAL = 100

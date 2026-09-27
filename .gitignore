@@ -3,7 +3,18 @@
 */env
 node_modules/
 **/node_modules/
+
+# Secrets and local env. Example files with placeholders stay tracked.
 .env
 .env.*
+**/.env
+**/.env.*
 !.env.example
+!**/.env.example
 
+# Build output is produced by `npm run build`. Do not commit it.
+backend/dist/
+frontend/dist/
+*.tsbuildinfo
+
+.DS_Store

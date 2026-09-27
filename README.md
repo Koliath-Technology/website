@@ -86,15 +86,18 @@ Deploy one Railway service. Steps, env vars, and the Cloudflare DNS note are in 
 ## Security practices included
 
 - Google ID tokens verified with `google-auth-library` (audience-bound)
-- Helmet, CORS allowlist, JSON body size limit, rate limits
+- Browser session is an httpOnly cookie; mobile apps keep `Authorization: Bearer`
+- Helmet (including CSP), CORS allowlist, JSON body size limit, rate limits
 - Redeem / stats require authenticated ownership of the global account
-- Qualification and register endpoints require webhook secret in production
+- Qualification and register endpoints require the webhook secret unless `NODE_ENV=development`
 - Env-based DB URL (no hardcoded production credentials)
 - Parameterized SQL only
 
+See [SECURITY_AUDIT.md](SECURITY_AUDIT.md) for the review and what was changed.
+
 ## Linking mobile apps
 
-After Google sign-in on `/earn`, apps can call (with the user’s Google ID token):
+After Google sign-in on `/login` or `/earn`, apps can call (with the user’s Google ID token):
 
 ```http
 POST /api/me/link-app

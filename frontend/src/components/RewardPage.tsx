@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { GoogleLogin } from "@react-oauth/google"
+import { Link } from "react-router-dom"
 import { motion, AnimatePresence } from "framer-motion"
 import {
     Gift,
@@ -15,6 +15,7 @@ import {
     Smartphone,
 } from "lucide-react"
 import { Button } from "./ui/button"
+import { GoogleSignIn } from "./GoogleSignIn"
 import { useAuth } from "../lib/auth"
 import {
     fetchReferralRules,
@@ -32,7 +33,7 @@ const PREVIEW_REWARDS: Reward[] = [
 ]
 
 export default function RewardPage() {
-    const { user, idToken, loading, configured, signInWithCredential, signOut, refresh } = useAuth()
+    const { user, signOut, refresh } = useAuth()
     const [rewards, setRewards] = useState<Reward[]>([])
     const [rules, setRules] = useState<ReferralRule[]>([])
     const [loadingRewards, setLoadingRewards] = useState(true)
@@ -40,7 +41,6 @@ export default function RewardPage() {
     const [redeemError, setRedeemError] = useState<string | null>(null)
     const [redeemSuccess, setRedeemSuccess] = useState<string | null>(null)
     const [copied, setCopied] = useState(false)
-    const [authError, setAuthError] = useState<string | null>(null)
     const [catalogNote, setCatalogNote] = useState<string | null>(null)
     const { refCode } = useReferralTracker()
 
@@ -67,12 +67,12 @@ export default function RewardPage() {
     }, [])
 
     const handleRedeem = async (reward: Reward) => {
-        if (!idToken || !user) return
+        if (!user) return
         setRedeemingId(reward.id)
         setRedeemError(null)
         setRedeemSuccess(null)
         try {
-            const result = await redeemReward(idToken, reward.id, user.email)
+            const result = await redeemReward(reward.id, user.email)
             setRedeemSuccess(result.message)
             await refresh()
         } catch (err: unknown) {
@@ -140,41 +140,10 @@ export default function RewardPage() {
 
                     {!user && (
                         <div className="flex flex-col items-center gap-4">
-                            {!configured ? (
-                                <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 max-w-md">
-                                    Set <code className="font-mono">VITE_GOOGLE_CLIENT_ID</code> to
-                                    enable Google Sign-In.
-                                </p>
-                            ) : loading ? (
-                                <Loader2 className="w-8 h-8 animate-spin text-[var(--accent)]" />
-                            ) : (
-                                <div className="rounded-2xl overflow-hidden shadow-lg">
-                                    <GoogleLogin
-                                        onSuccess={async (res) => {
-                                            if (!res.credential) return
-                                            setAuthError(null)
-                                            try {
-                                                await signInWithCredential(res.credential)
-                                            } catch (e) {
-                                                setAuthError(
-                                                    e instanceof Error
-                                                        ? e.message
-                                                        : "Sign-in failed"
-                                                )
-                                            }
-                                        }}
-                                        onError={() => setAuthError("Google Sign-In failed")}
-                                        theme="filled_black"
-                                        shape="pill"
-                                        size="large"
-                                        text="continue_with"
-                                        useOneTap={false}
-                                    />
-                                </div>
-                            )}
-                            {authError && (
-                                <p className="text-sm text-red-600">{authError}</p>
-                            )}
+                            <GoogleSignIn />
+                            <Link to="/login" className="text-sm underline text-[var(--ink)]">
+                                Login
+                            </Link>
                         </div>
                     )}
                 </div>

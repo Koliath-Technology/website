@@ -3,10 +3,20 @@ import path from "path"
 import express from "express"
 import cors from "cors"
 import helmet from "helmet"
+import cookieParser from "cookie-parser"
 import rateLimit from "express-rate-limit"
-import { z } from "zod"
 import { config } from "./config"
-import { requireAuth, requireAppWebhook, verifyGoogleIdToken } from "./auth"
+import { logError } from "./redact"
+import {
+    SESSION_COOKIE,
+    authFailure,
+    clearSessionCookies,
+    csrfHeaderValid,
+    requireAuth,
+    requireAppWebhook,
+    setSessionCookies,
+    verifyGoogleIdToken,
+} from "./auth"
 import { listPublicRules } from "./rules"
 import {
     careersSchema,
@@ -43,10 +53,42 @@ app.set("trust proxy", 1)
 
 app.use(
     helmet({
-        contentSecurityPolicy: false,
-        crossOriginResourcePolicy: { policy: "cross-origin" },
+        contentSecurityPolicy: {
+            useDefaults: true,
+            directives: {
+                defaultSrc: ["'self'"],
+                baseUri: ["'self'"],
+                objectSrc: ["'none'"],
+                frameAncestors: ["'self'"],
+                formAction: ["'self'"],
+                scriptSrc: ["'self'", "https://accounts.google.com"],
+                styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+                fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
+                imgSrc: [
+                    "'self'",
+                    "data:",
+                    "https://*.googleusercontent.com",
+                    "https://*.gstatic.com",
+                ],
+                connectSrc: ["'self'", "https://accounts.google.com", "https://oauth2.googleapis.com"],
+                frameSrc: ["https://accounts.google.com"],
+                // TLS is terminated by Railway. Forcing an upgrade here breaks
+                // the documented local HTTP smoke test.
+                upgradeInsecureRequests: null,
+            },
+        },
+        // GIS sign-in opens a Google window. same-origin COOP blocks that popup.
+        crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
+        crossOriginResourcePolicy: { policy: "same-site" },
     })
 )
+
+app.use((_req, res, next) => {
+    res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    next()
+})
+
+app.use(cookieParser())
 
 app.use(
     cors({
@@ -100,6 +142,34 @@ const contactLimiter = rateLimit({
     message: { success: false, message: "Too many contact requests" },
 })
 
+const careerLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 8,
+    message: { success: false, message: "Too many applications" },
+})
+
+const webhookLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 120,
+    message: { success: false, message: "Too many webhook requests" },
+})
+
+const validateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 40,
+    message: { success: false, message: "Too many validation requests" },
+})
+
+const redeemLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    message: { success: false, message: "Too many redemption requests" },
+})
+
+function invalidRequest(res: express.Response) {
+    return res.status(400).json({ success: false, message: "Invalid request" })
+}
+
 /**
  * Accepts brochure / hub inquiries without a mailbox integration.
  * The process log is the dev inbox. Production should tail these logs or
@@ -125,10 +195,10 @@ app.post("/api/contact", contactLimiter, (req, res) => {
     })
 })
 
-app.post("/careers", async (req, res) => {
+async function submitCareer(req: express.Request, res: express.Response) {
     const body = careersSchema.safeParse(req.body)
     if (!body.success) {
-        return res.status(400).json({ msg: z.treeifyError(body.error) })
+        return invalidRequest(res)
     }
 
     const { name, email, contact, linkedin } = body.data
@@ -136,17 +206,21 @@ app.post("/careers", async (req, res) => {
         await createCareer({ name, email, contact, linkedin })
     } catch {
         return res.status(500).json({
-            msg: "Application already exists or database unavailable",
+            success: false,
+            message: "Application already exists or database unavailable",
         })
     }
 
     res.status(200).json({
-        msg: "Career application received successfully",
-        data: { name, email, contact, linkedin },
+        success: true,
+        message: "Career application received successfully",
     })
-})
+}
 
-/** Exchange Google ID token for a Koliath global session profile. */
+app.post("/careers", careerLimiter, submitCareer)
+app.post("/api/careers", careerLimiter, submitCareer)
+
+/** Exchange Google ID token for a browser session cookie and profile. */
 app.post("/api/auth/google", authLimiter, async (req, res) => {
     const body = googleSessionSchema.safeParse(req.body)
     if (!body.success) {
@@ -157,21 +231,32 @@ app.post("/api/auth/google", authLimiter, async (req, res) => {
         const authUser = await verifyGoogleIdToken(body.data.idToken)
         const user = await upsertGlobalUser(authUser)
         const dashboard = await getDashboardForUser(user.id)
+        setSessionCookies(res, body.data.idToken, authUser.expiresAt)
+        res.setHeader("Cache-Control", "no-store")
         res.status(200).json({
             success: true,
             user: dashboard,
         })
     } catch (e: unknown) {
-        console.error(e)
-        const status =
-            typeof e === "object" && e && "status" in e ? Number((e as { status: number }).status) : 401
-        const message = e instanceof Error ? e.message : "Authentication failed"
+        logError("google sign-in failed", e)
+        const { status, message } = authFailure(e)
         res.status(status).json({ success: false, message })
     }
 })
 
+app.post("/api/auth/logout", (req, res) => {
+    const hasSession = typeof req.cookies?.[SESSION_COOKIE] === "string" && req.cookies[SESSION_COOKIE]
+    if (hasSession && !csrfHeaderValid(req)) {
+        return res.status(403).json({ success: false, message: "CSRF check failed" })
+    }
+    clearSessionCookies(res)
+    res.setHeader("Cache-Control", "no-store")
+    res.status(200).json({ success: true })
+})
+
 /** Authenticated dashboard for the signed-in Google account. */
 app.get("/api/me", requireAuth, async (req, res) => {
+    res.setHeader("Cache-Control", "no-store")
     try {
         const user = await getGlobalUserByGoogleSub(req.authUser!.googleSub)
         if (!user) {
@@ -182,7 +267,7 @@ app.get("/api/me", requireAuth, async (req, res) => {
         const dashboard = await getDashboardForUser(user.id)
         res.status(200).json(dashboard)
     } catch (e) {
-        console.error(e)
+        logError("request failed", e)
         res.status(500).json({ success: false, message: "Failed to load profile" })
     }
 })
@@ -190,7 +275,7 @@ app.get("/api/me", requireAuth, async (req, res) => {
 app.post("/api/me/link-app", requireAuth, async (req, res) => {
     const body = linkAppAccountSchema.safeParse(req.body)
     if (!body.success) {
-        return res.status(400).json({ msg: z.treeifyError(body.error) })
+        return invalidRequest(res)
     }
     try {
         let user = await getGlobalUserByGoogleSub(req.authUser!.googleSub)
@@ -202,16 +287,20 @@ app.post("/api/me/link-app", requireAuth, async (req, res) => {
             body.data.referralCode
         )
         res.status(200).json({ success: true, user: dashboard })
-    } catch (e) {
-        console.error(e)
+    } catch (e: unknown) {
+        logError("link app failed", e)
+        const err = e as { status?: number; message?: string }
+        if (err.status === 403 || err.status === 409) {
+            return res.status(err.status).json({ success: false, message: err.message })
+        }
         res.status(500).json({ success: false, message: "Failed to link app account" })
     }
 })
 
-app.post("/api/referrals/register", requireAppWebhook, async (req, res) => {
+app.post("/api/referrals/register", webhookLimiter, requireAppWebhook, async (req, res) => {
     const body = registerReferralSchema.safeParse(req.body)
     if (!body.success) {
-        return res.status(400).json({ msg: z.treeifyError(body.error) })
+        return invalidRequest(res)
     }
 
     try {
@@ -221,9 +310,9 @@ app.post("/api/referrals/register", requireAppWebhook, async (req, res) => {
             null,
             body.data.ownerEmail ?? null
         )
-        res.status(200).json({ success: true, ...result })
+        res.status(200).json({ success: true, code: result.code, sourceApp: result.sourceApp })
     } catch (e) {
-        console.error(e)
+        logError("request failed", e)
         res.status(500).json({ success: false, message: "Failed to register referral code" })
     }
 })
@@ -231,7 +320,7 @@ app.post("/api/referrals/register", requireAppWebhook, async (req, res) => {
 app.get("/api/referrals/stats", requireAuth, async (req, res) => {
     const query = referralStatsQuerySchema.safeParse(req.query)
     if (!query.success) {
-        return res.status(400).json({ msg: z.treeifyError(query.error) })
+        return invalidRequest(res)
     }
 
     try {
@@ -253,7 +342,7 @@ app.get("/api/referrals/stats", requireAuth, async (req, res) => {
         }
         res.status(200).json(stats)
     } catch (e) {
-        console.error(e)
+        logError("request failed", e)
         res.status(500).json({ msg: "Internal server error" })
     }
 })
@@ -263,15 +352,15 @@ app.get("/api/referrals/rewards", async (_req, res) => {
         const rewards = await getAllRewards()
         res.status(200).json(rewards)
     } catch (e) {
-        console.error(e)
+        logError("request failed", e)
         res.status(500).json({ msg: "Internal server error" })
     }
 })
 
-app.post("/api/referrals/redeem", requireAuth, async (req, res) => {
+app.post("/api/referrals/redeem", redeemLimiter, requireAuth, async (req, res) => {
     const body = redeemRewardSchema.safeParse(req.body)
     if (!body.success) {
-        return res.status(400).json({ msg: z.treeifyError(body.error) })
+        return invalidRequest(res)
     }
 
     try {
@@ -292,7 +381,7 @@ app.post("/api/referrals/redeem", requireAuth, async (req, res) => {
             message: "Redemption request submitted! We'll email your gift card within 48 hours.",
         })
     } catch (e: unknown) {
-        console.error(e)
+        logError("request failed", e)
         const err = e as { status?: number; message?: string }
         if (err.status === 404 || err.status === 400) {
             return res.status(err.status).json({ success: false, message: err.message })
@@ -302,10 +391,10 @@ app.post("/api/referrals/redeem", requireAuth, async (req, res) => {
 })
 
 /** Legacy path — apps should migrate to /api/referrals/qualify with webhook secret. */
-app.post("/api/referrals/event", requireAppWebhook, async (req, res) => {
+app.post("/api/referrals/event", webhookLimiter, requireAppWebhook, async (req, res) => {
     const body = referralEventSchema.safeParse(req.body)
     if (!body.success) {
-        return res.status(400).json({ msg: z.treeifyError(body.error) })
+        return invalidRequest(res)
     }
 
     try {
@@ -321,7 +410,7 @@ app.post("/api/referrals/event", requireAppWebhook, async (req, res) => {
             pointsAwarded: event.points_awarded,
         })
     } catch (e: unknown) {
-        console.error(e)
+        logError("request failed", e)
         const err = e as { code?: string; status?: number }
         if (err.code === "23505") {
             return res.status(400).json({
@@ -340,10 +429,10 @@ app.post("/api/referrals/event", requireAppWebhook, async (req, res) => {
 })
 
 /** Trusted qualification webhook — Sapient day_active, Adverts purchase, etc. */
-app.post("/api/referrals/qualify", requireAppWebhook, async (req, res) => {
+app.post("/api/referrals/qualify", webhookLimiter, requireAppWebhook, async (req, res) => {
     const body = qualifyReferralSchema.safeParse(req.body)
     if (!body.success) {
-        return res.status(400).json({ msg: z.treeifyError(body.error) })
+        return invalidRequest(res)
     }
 
     try {
@@ -356,7 +445,7 @@ app.post("/api/referrals/qualify", requireAppWebhook, async (req, res) => {
         )
         res.status(200).json(result)
     } catch (e: unknown) {
-        console.error(e)
+        logError("request failed", e)
         const err = e as { code?: string; status?: number; message?: string }
         if (err.code === "23505") {
             return res.status(400).json({
@@ -371,7 +460,7 @@ app.post("/api/referrals/qualify", requireAppWebhook, async (req, res) => {
     }
 })
 
-app.get("/api/referrals/validate", async (req, res) => {
+app.get("/api/referrals/validate", validateLimiter, async (req, res) => {
     const code = req.query.code
     if (!code || typeof code !== "string") {
         return res.status(400).json({ success: false, message: "Code is required" })
@@ -385,7 +474,7 @@ app.get("/api/referrals/validate", async (req, res) => {
             res.status(404).json({ success: false, message: "Invalid referral code" })
         }
     } catch (e) {
-        console.error(e)
+        logError("request failed", e)
         res.status(500).json({ success: false, message: "Internal server error" })
     }
 })
@@ -393,7 +482,7 @@ app.get("/api/referrals/validate", async (req, res) => {
 app.post("/api/referrals/track", trackingLimiter, async (req, res) => {
     const body = referralTrackingSchema.safeParse(req.body)
     if (!body.success) {
-        return res.status(400).json({ msg: z.treeifyError(body.error) })
+        return invalidRequest(res)
     }
 
     try {
@@ -409,7 +498,7 @@ app.post("/api/referrals/track", trackingLimiter, async (req, res) => {
         )
         res.status(200).json({ success: true })
     } catch (e) {
-        console.error(e)
+        logError("request failed", e)
         res.status(500).json({ success: false, message: "Failed to track referral event" })
     }
 })
@@ -427,6 +516,8 @@ if (hasFrontend) {
     app.use(
         express.static(frontendDist, {
             index: "index.html",
+            dotfiles: "deny",
+            redirect: false,
             setHeaders(res, filePath) {
                 if (filePath.endsWith(`${path.sep}index.html`)) {
                     res.setHeader("Cache-Control", "no-cache")
@@ -460,6 +551,16 @@ if (hasFrontend) {
 
 app.use((_req, res) => {
     res.status(404).json({ success: false, message: "Not found" })
+})
+
+app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    if (err instanceof Error && err.message === "Not allowed by CORS") {
+        res.status(403).json({ success: false, message: "Origin not allowed" })
+        return
+    }
+    logError("unhandled", err)
+    if (res.headersSent) return
+    res.status(500).json({ success: false, message: "Internal server error" })
 })
 
 app.listen(config.port, () => {

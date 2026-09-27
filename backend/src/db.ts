@@ -3,40 +3,15 @@ import { Pool } from "pg"
 import { z } from "zod"
 import { careersSchema } from "./types/types"
 import { config, POINTS_PER_REFERRAL } from "./config"
+import { databasePoolConfig } from "./pgSsl"
+import { logError } from "./redact"
 import { getRule, isSourceApp, type SourceApp, type QualificationEvent } from "./rules"
-import type { AuthUser } from "./auth"
+import { safePictureUrl, type AuthUser } from "./auth"
 
 export type Career = z.infer<typeof careersSchema>
 
-/**
- * Railway's public proxy presents a certificate Node does not trust.
- * `pg` also lets `sslmode` in the URL overwrite an `ssl` option, so strip it
- * and set `rejectUnauthorized: false` for any non-local database.
- * Local Postgres stays without SSL. A missing DATABASE_URL still fails in production.
- */
-function databasePoolConfig(databaseUrl: string): {
-    connectionString: string
-    ssl?: { rejectUnauthorized: false }
-} {
-    let host = ""
-    try {
-        host = new URL(databaseUrl).hostname
-    } catch {
-        host = databaseUrl.match(/@([^/:?#]+)/)?.[1] ?? ""
-    }
-    const local = host === "localhost" || host === "127.0.0.1" || host === "::1"
-    const sslDisabled = /[?&]sslmode=disable(?:&|$)/.test(databaseUrl)
-    if (local || sslDisabled) {
-        return { connectionString: databaseUrl }
-    }
-    const connectionString = databaseUrl
-        .replace(/([?&])sslmode=[^&]*&/g, "$1")
-        .replace(/([?&])sslmode=[^&]*$/g, "")
-    return { connectionString, ssl: { rejectUnauthorized: false } }
-}
-
 const pool = new Pool({
-    ...databasePoolConfig(config.databaseUrl),
+    ...databasePoolConfig(config.databaseUrl, config.databaseSslRejectUnauthorized),
     max: 10,
 })
 
@@ -194,7 +169,7 @@ async function createTable() {
 
         console.log("Tables ready")
     } catch (e) {
-        console.error("Error creating tables:", e)
+        logError("Error creating tables", e)
     }
 }
 void createTable()
@@ -277,7 +252,9 @@ export async function getDashboardForUser(globalUserId: number) {
     const codes = await pool.query(
         `SELECT code, source_app AS "sourceApp", created_at AS "createdAt"
          FROM referral_codes
-         WHERE global_user_id = $1 OR owner_email = $2 OR code = $3
+         WHERE code = $3
+            OR global_user_id = $1
+            OR (LOWER(owner_email) = LOWER($2) AND (global_user_id IS NULL OR global_user_id = $1))
          ORDER BY created_at ASC`,
         [globalUserId, user.email, user.global_code]
     )
@@ -347,7 +324,7 @@ export async function getDashboardForUser(globalUserId: number) {
         id: user.id,
         email: user.email,
         displayName: user.display_name,
-        pictureUrl: user.picture_url,
+        pictureUrl: safePictureUrl(user.picture_url) ?? null,
         globalCode: user.global_code,
         codes: codes.rows,
         linkedApps: links.rows,
@@ -369,19 +346,37 @@ export async function linkAppAccount(
     appUid: string,
     referralCode?: string
 ) {
-    await pool.query(
-        `INSERT INTO app_account_links (global_user_id, source_app, app_uid, referral_code)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (global_user_id, source_app) DO UPDATE SET
-            app_uid = EXCLUDED.app_uid,
-            referral_code = COALESCE(EXCLUDED.referral_code, app_account_links.referral_code),
-            linked_at = NOW()`,
-        [globalUserId, sourceApp, appUid, referralCode ?? null]
-    )
-
+    const user = await getGlobalUserById(globalUserId)
     if (referralCode) {
-        const user = await getGlobalUserById(globalUserId)
-        await registerReferralCode(referralCode, sourceApp, globalUserId, user?.email)
+        const registered = await registerReferralCode(
+            referralCode,
+            sourceApp,
+            globalUserId,
+            user?.email
+        )
+        if (!registered.linked) {
+            throw Object.assign(new Error("Referral code is already linked to another account"), {
+                status: 403,
+            })
+        }
+    }
+
+    try {
+        await pool.query(
+            `INSERT INTO app_account_links (global_user_id, source_app, app_uid, referral_code)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (global_user_id, source_app) DO UPDATE SET
+                app_uid = EXCLUDED.app_uid,
+                referral_code = COALESCE(EXCLUDED.referral_code, app_account_links.referral_code),
+                linked_at = NOW()`,
+            [globalUserId, sourceApp, appUid, referralCode ?? null]
+        )
+    } catch (e: unknown) {
+        const err = e as { code?: string }
+        if (err.code === "23505") {
+            throw Object.assign(new Error("That app account is already linked"), { status: 409 })
+        }
+        throw e
     }
 
     return getDashboardForUser(globalUserId)
@@ -394,14 +389,33 @@ export async function registerReferralCode(
     ownerEmail?: string | null
 ) {
     const normalized = code.trim().toUpperCase()
-    await pool.query(
+    const ownerId = globalUserId ?? null
+    const email = ownerEmail?.toLowerCase() ?? null
+    // Never replace an existing owner. A new global_user_id is applied only
+    // while the row is unclaimed. source_app / owner_email follow the same rule.
+    const result = await pool.query(
         `INSERT INTO referral_codes (code, source_app, global_user_id, owner_email)
          VALUES ($1, $2, $3, $4)
          ON CONFLICT (code) DO UPDATE SET
-            source_app = EXCLUDED.source_app,
-            global_user_id = COALESCE(EXCLUDED.global_user_id, referral_codes.global_user_id),
-            owner_email = COALESCE(EXCLUDED.owner_email, referral_codes.owner_email)`,
-        [normalized, sourceApp, globalUserId ?? null, ownerEmail?.toLowerCase() ?? null]
+            source_app = CASE
+                WHEN referral_codes.global_user_id IS NULL
+                  OR referral_codes.global_user_id = EXCLUDED.global_user_id
+                THEN EXCLUDED.source_app
+                ELSE referral_codes.source_app
+            END,
+            global_user_id = CASE
+                WHEN referral_codes.global_user_id IS NULL THEN EXCLUDED.global_user_id
+                ELSE referral_codes.global_user_id
+            END,
+            owner_email = CASE
+                WHEN referral_codes.owner_email IS NULL THEN EXCLUDED.owner_email
+                WHEN referral_codes.global_user_id IS NOT NULL
+                  AND referral_codes.global_user_id = EXCLUDED.global_user_id
+                THEN referral_codes.owner_email
+                ELSE referral_codes.owner_email
+            END
+         RETURNING global_user_id`,
+        [normalized, sourceApp, ownerId, email]
     )
     await pool.query(
         `INSERT INTO referral_balances (referrer_code, points_earned, points_spent)
@@ -409,7 +423,9 @@ export async function registerReferralCode(
          ON CONFLICT (referrer_code) DO NOTHING`,
         [normalized]
     )
-    return { code: normalized, sourceApp }
+    const storedOwner = result.rows[0]?.global_user_id as number | null | undefined
+    const linked = ownerId == null || (storedOwner != null && Number(storedOwner) === ownerId)
+    return { code: normalized, sourceApp, linked }
 }
 
 export async function userOwnsCode(globalUserId: number, code: string): Promise<boolean> {
@@ -419,7 +435,11 @@ export async function userOwnsCode(globalUserId: number, code: string): Promise<
     if (user.global_code === normalized) return true
     const row = await pool.query(
         `SELECT 1 FROM referral_codes
-         WHERE code = $1 AND (global_user_id = $2 OR owner_email = $3)
+         WHERE code = $1
+           AND (
+                global_user_id = $2
+                OR (LOWER(owner_email) = LOWER($3) AND (global_user_id IS NULL OR global_user_id = $2))
+           )
          LIMIT 1`,
         [normalized, globalUserId, user.email]
     )
@@ -681,6 +701,16 @@ export async function qualifyReferral(
     const client = await pool.connect()
     try {
         await client.query("BEGIN")
+
+        const codeCheck = await client.query("SELECT code FROM referral_codes WHERE code = $1", [
+            normalized,
+        ])
+        if (codeCheck.rows.length === 0) {
+            throw Object.assign(new Error("Unknown referral code"), {
+                status: 404,
+                code: "UNKNOWN_CODE",
+            })
+        }
 
         let existing = await client.query(
             `SELECT * FROM referral_events

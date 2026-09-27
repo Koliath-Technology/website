@@ -16,22 +16,48 @@ function resolveApiRoot(): string {
 
 export const API_ROOT = resolveApiRoot()
 
-function authHeaders(token?: string | null): HeadersInit {
+const CSRF_COOKIE = "koliath_csrf"
+
+export class ApiError extends Error {
+    status: number
+
+    constructor(status: number, message: string) {
+        super(message)
+        this.name = "ApiError"
+        this.status = status
+    }
+}
+
+function readCsrfCookie(): string | null {
+    if (typeof document === "undefined") return null
+    for (const part of document.cookie.split("; ")) {
+        if (part.startsWith(`${CSRF_COOKIE}=`)) {
+            return decodeURIComponent(part.slice(CSRF_COOKIE.length + 1))
+        }
+    }
+    return null
+}
+
+function authHeaders(includeCsrf: boolean): HeadersInit {
     const headers: Record<string, string> = {
         "Content-Type": "application/json",
     }
-    if (token) headers.Authorization = `Bearer ${token}`
+    if (includeCsrf) {
+        const csrf = readCsrfCookie()
+        if (csrf) headers["X-CSRF-Token"] = csrf
+    }
     return headers
 }
 
 async function parseJson<T>(response: Response): Promise<T> {
     const data = await response.json().catch(() => ({}))
     if (!response.ok) {
-        const message =
+        const raw =
             (data as { message?: string; msg?: string }).message ||
             (data as { msg?: string }).msg ||
             "Request failed"
-        throw new Error(typeof message === "string" ? message : "Request failed")
+        const message = typeof raw === "string" ? raw : "Request failed"
+        throw new ApiError(response.status, message)
     }
     return data as T
 }
@@ -89,18 +115,29 @@ export interface Reward {
 export async function exchangeGoogleToken(idToken: string): Promise<DashboardUser> {
     const response = await fetch(`${API_ROOT}/api/auth/google`, {
         method: "POST",
-        headers: authHeaders(),
+        credentials: "include",
+        headers: authHeaders(false),
         body: JSON.stringify({ idToken }),
     })
     const data = await parseJson<{ success: boolean; user: DashboardUser }>(response)
     return data.user
 }
 
-export async function fetchMe(token: string): Promise<DashboardUser> {
+export async function fetchMe(): Promise<DashboardUser> {
     const response = await fetch(`${API_ROOT}/api/me`, {
-        headers: authHeaders(token),
+        credentials: "include",
+        headers: authHeaders(false),
     })
     return parseJson<DashboardUser>(response)
+}
+
+export async function logoutSession(): Promise<void> {
+    const response = await fetch(`${API_ROOT}/api/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+        headers: authHeaders(true),
+    })
+    await parseJson<{ success: boolean }>(response)
 }
 
 export async function fetchReferralRules(): Promise<ReferralRule[]> {
@@ -114,10 +151,11 @@ export async function fetchRewards(): Promise<Reward[]> {
     return parseJson<Reward[]>(response)
 }
 
-export async function redeemReward(token: string, rewardId: number, contactEmail?: string) {
+export async function redeemReward(rewardId: number, contactEmail?: string) {
     const response = await fetch(`${API_ROOT}/api/referrals/redeem`, {
         method: "POST",
-        headers: authHeaders(token),
+        credentials: "include",
+        headers: authHeaders(true),
         body: JSON.stringify({ rewardId, contactEmail }),
     })
     return parseJson<{ success: boolean; message: string }>(response)

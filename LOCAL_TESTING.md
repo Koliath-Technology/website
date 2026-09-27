@@ -51,6 +51,7 @@ npm run dev:backend
 |-----|---------------------|
 | http://localhost:5173/ | Studio homepage: brochure + app hub, products, Earn |
 | http://localhost:5173/products | App briefs, download / request buttons, “list your app” |
+| http://localhost:5173/login | Login. Google button, or setup copy if the public client id is blank |
 | http://localhost:5173/earn | Points and referral UX. Sample gifts if the API is off |
 | http://localhost:5173/contact | Contact form. Without the API, it offers `hello@koliath.in` |
 | http://localhost:5173/about | About |

@@ -26,7 +26,19 @@ const careersSchema = z.object({
         .regex(/^\d+$/, { message: "Contact must be a number" }),
     linkedin: z
         .string()
-        .min(5, { message: "LinkedIn URL must be at least 5 characters long" }),
+        .trim()
+        .refine((value) => {
+            try {
+                const url = new URL(value)
+                const host = url.hostname.toLowerCase()
+                return (
+                    url.protocol === "https:" &&
+                    (host === "linkedin.com" || host.endsWith(".linkedin.com"))
+                )
+            } catch {
+                return false
+            }
+        }, { message: "Use an https LinkedIn profile URL" }),
 })
 
 type CareersFormData = z.infer<typeof careersSchema>
