@@ -68,14 +68,29 @@ There are no `/legal/*` pages in this repo. If you add them as client routes, th
 
 Referral check: open `http://localhost:5173/products?ref=KL-TEST`. The products page should say that code is saved. Download buttons call the existing referral tracker (`install_attempt`). With the API down, the code is still stored locally and tracking fails closed (logged, not thrown).
 
-## 5. Production build smoke
+## 5. Production-like build (one process)
+
+`npm run build` builds the Vite app and the API. `npm start` runs Express, which serves `frontend/dist` and returns `index.html` for client routes. Leave `VITE_API_BASE` empty.
+
+Production refuses to boot without `DATABASE_URL`. This local URL is only the dev default so you can prove the process serves HTML and `/api/health`. It is not a Railway credential. Postgres does not need to be up for this check.
 
 ```bash
 npm run build
-npm run preview
+NODE_ENV=production PORT=3000 \
+  DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5433/mydb \
+  npm start
 ```
 
-Preview defaults to http://localhost:4173. Refresh `/earn`, `/contact`, and `/products` there too.
+Then:
+
+```bash
+curl -s http://localhost:3000/api/health
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3000/earn
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3000/contact
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3000/products
+```
+
+`/api/health` is JSON. `/earn`, `/contact`, and `/products` are HTML (`200`). Refresh is the same GET.
 
 Confirm the client bundle does not call localhost:
 
@@ -83,27 +98,12 @@ Confirm the client bundle does not call localhost:
 grep -R "localhost:3000" frontend/dist/assets && echo "FAIL" || echo "OK: no localhost API in the bundle"
 ```
 
-## 6. Production SPA fallback (koliath.in)
+`npm run preview` still serves the Vite build alone on http://localhost:4173. The command above is the one that matches Railway.
 
-The host must serve `frontend/dist/index.html` for client routes, and proxy `/api` (and `/careers`, `/health`) to the Node process unless `VITE_API_BASE` is an https origin baked in at build time.
+## 6. Production on Railway
 
-Nginx:
+See [RAILWAY.md](RAILWAY.md). One service builds both packages and runs the API. You do not need a separate static host or an nginx SPA fallback.
 
-```nginx
-location /api/ {
-    proxy_pass http://127.0.0.1:3000;
-}
-location /careers {
-    proxy_pass http://127.0.0.1:3000;
-}
-location /health {
-    proxy_pass http://127.0.0.1:3000;
-}
-location / {
-    try_files $uri $uri/ /index.html;
-}
-```
+Set `NODE_ENV=production`. `DATABASE_URL` must be the Railway Postgres plugin URL. `GOOGLE_CLIENT_ID` and `APP_WEBHOOK_SECRET` must be real values you create — this repo does not contain them. Set `CORS_ORIGINS=https://koliath.in,https://www.koliath.in`. Leave `VITE_API_BASE` unset.
 
-`127.0.0.1` in that snippet is the server loopback to Node. It is not a URL shipped to the browser.
-
-Set `NODE_ENV=production` on the API. Then `DATABASE_URL`, `GOOGLE_CLIENT_ID`, and `APP_WEBHOOK_SECRET` must be real values — production does not invent them. Set `CORS_ORIGINS=https://koliath.in,https://www.koliath.in`.
+There are no `/legal/*` pages. If you add them as client routes, the same `index.html` fallback covers them.

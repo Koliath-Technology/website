@@ -12,6 +12,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const fs_1 = __importDefault(require("fs"));
+const path_1 = __importDefault(require("path"));
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const helmet_1 = __importDefault(require("helmet"));
@@ -56,9 +58,11 @@ const trackingLimiter = (0, express_rate_limit_1.default)({
     max: 100,
     message: { success: false, message: "Too many tracking requests" },
 });
-app.get("/health", (_req, res) => {
+function health(_req, res) {
     res.status(200).json({ ok: true, service: "koliath-rewards" });
-});
+}
+app.get("/health", health);
+app.get("/api/health", health);
 app.get("/api/referral-rules", (_req, res) => {
     res.status(200).json({ rules: (0, rules_1.listPublicRules)() });
 });
@@ -334,9 +338,49 @@ app.post("/api/referrals/track", trackingLimiter, (req, res) => __awaiter(void 0
         res.status(500).json({ success: false, message: "Failed to track referral event" });
     }
 }));
+const frontendDist = path_1.default.resolve(__dirname, "../../frontend/dist");
+const frontendIndex = path_1.default.join(frontendDist, "index.html");
+const hasFrontend = fs_1.default.existsSync(frontendIndex);
+if (!hasFrontend && config_1.config.isProd) {
+    console.error(`Frontend build missing at ${frontendIndex}. Run npm run build from the repo root.`);
+    process.exit(1);
+}
+if (hasFrontend) {
+    app.use(express_1.default.static(frontendDist, {
+        index: "index.html",
+        setHeaders(res, filePath) {
+            if (filePath.endsWith(`${path_1.default.sep}index.html`)) {
+                res.setHeader("Cache-Control", "no-cache");
+            }
+        },
+    }));
+    // Client routes (/earn, /contact, /products, …) have no file on disk.
+    // API paths and missing hashed assets stay JSON 404s.
+    app.use((req, res, next) => {
+        if (req.method !== "GET" && req.method !== "HEAD") {
+            next();
+            return;
+        }
+        if (req.path === "/health" || req.path === "/api" || req.path.startsWith("/api/")) {
+            next();
+            return;
+        }
+        if (path_1.default.extname(req.path)) {
+            next();
+            return;
+        }
+        res.sendFile(frontendIndex, (err) => {
+            if (err)
+                next(err);
+        });
+    });
+}
+else {
+    console.warn(`Frontend build not found at ${frontendIndex}; serving API only.`);
+}
 app.use((_req, res) => {
     res.status(404).json({ success: false, message: "Not found" });
 });
 app.listen(config_1.config.port, () => {
-    console.log(`Koliath rewards API listening on port ${config_1.config.port}`);
+    console.log(`Koliath listening on port ${config_1.config.port}`);
 });

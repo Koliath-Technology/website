@@ -79,11 +79,9 @@ npm run dev
 
 ## Production (koliath.in)
 
-1. Build frontend: `cd frontend && npm run build` → serve `dist/` on the domain.
-2. Run backend behind HTTPS (Node, Docker, or Cloud Run) with `NODE_ENV=production`.
-3. Set env vars from `.env.example` files; never commit secrets.
-4. Point `CORS_ORIGINS` at `https://koliath.in,https://www.koliath.in`.
-5. Optionally set `VITE_API_BASE=https://api.koliath.in` if API is on a subdomain; otherwise reverse-proxy `/api` to the Node service.
+Deploy one Railway service. Steps, env vars, and the Cloudflare DNS note are in [RAILWAY.md](RAILWAY.md).
+
+`npm run build` then `npm start`. Express serves `frontend/dist` and falls back to `index.html` for `/earn`, `/contact`, `/products`, and the other client routes. Leave `VITE_API_BASE` empty so the browser calls same-origin `/api`. Production exits if `DATABASE_URL` is missing.
 
 ## Security practices included
 

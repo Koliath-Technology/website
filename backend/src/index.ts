@@ -1,3 +1,5 @@
+import fs from "fs"
+import path from "path"
 import express from "express"
 import cors from "cors"
 import helmet from "helmet"
@@ -81,9 +83,12 @@ const trackingLimiter = rateLimit({
     message: { success: false, message: "Too many tracking requests" },
 })
 
-app.get("/health", (_req, res) => {
+function health(_req: express.Request, res: express.Response) {
     res.status(200).json({ ok: true, service: "koliath-rewards" })
-})
+}
+
+app.get("/health", health)
+app.get("/api/health", health)
 
 app.get("/api/referral-rules", (_req, res) => {
     res.status(200).json({ rules: listPublicRules() })
@@ -409,10 +414,54 @@ app.post("/api/referrals/track", trackingLimiter, async (req, res) => {
     }
 })
 
+const frontendDist = path.resolve(__dirname, "../../frontend/dist")
+const frontendIndex = path.join(frontendDist, "index.html")
+const hasFrontend = fs.existsSync(frontendIndex)
+
+if (!hasFrontend && config.isProd) {
+    console.error(`Frontend build missing at ${frontendIndex}. Run npm run build from the repo root.`)
+    process.exit(1)
+}
+
+if (hasFrontend) {
+    app.use(
+        express.static(frontendDist, {
+            index: "index.html",
+            setHeaders(res, filePath) {
+                if (filePath.endsWith(`${path.sep}index.html`)) {
+                    res.setHeader("Cache-Control", "no-cache")
+                }
+            },
+        })
+    )
+
+    // Client routes (/earn, /contact, /products, …) have no file on disk.
+    // API paths and missing hashed assets stay JSON 404s.
+    app.use((req, res, next) => {
+        if (req.method !== "GET" && req.method !== "HEAD") {
+            next()
+            return
+        }
+        if (req.path === "/health" || req.path === "/api" || req.path.startsWith("/api/")) {
+            next()
+            return
+        }
+        if (path.extname(req.path)) {
+            next()
+            return
+        }
+        res.sendFile(frontendIndex, (err) => {
+            if (err) next(err)
+        })
+    })
+} else {
+    console.warn(`Frontend build not found at ${frontendIndex}; serving API only.`)
+}
+
 app.use((_req, res) => {
     res.status(404).json({ success: false, message: "Not found" })
 })
 
 app.listen(config.port, () => {
-    console.log(`Koliath rewards API listening on port ${config.port}`)
+    console.log(`Koliath listening on port ${config.port}`)
 })
