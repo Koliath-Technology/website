@@ -2,6 +2,9 @@
   "name": "koliath-website",
   "private": true,
   "description": "Koliath company site and app hub (koliath.in)",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "postinstall": "npm install --include=dev --prefix frontend && npm install --include=dev --prefix backend",
     "dev": "npm run dev --prefix frontend",

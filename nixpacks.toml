@@ -1,0 +1,8 @@
+# Vite 7 and Tailwind's native oxide build need Node >= 20.19.
+# Pin 22 so Railway/Nixpacks does not fall back to Node 18.
+
+[variables]
+NIXPACKS_NODE_VERSION = "22"
+
+[phases.setup]
+nixPkgs = ["nodejs_22"]

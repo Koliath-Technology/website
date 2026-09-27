@@ -1,6 +1,10 @@
 # One Railway service: Nixpacks installs both packages, `npm run build`
 # writes frontend/dist and backend/dist, `npm start` runs the API.
 # The API serves frontend/dist and falls back to index.html for client routes.
+# Node 22 is required (Vite 7). See nixpacks.toml and package.json engines.
+
+[variables]
+NIXPACKS_NODE_VERSION = "22"
 
 [build]
 builder = "NIXPACKS"

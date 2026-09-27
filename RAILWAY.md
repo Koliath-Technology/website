@@ -9,7 +9,7 @@ Do not commit secrets. Production boots only when `DATABASE_URL` is set. An empt
 1. In Railway, create a project and choose **Deploy from GitHub repo**.
 2. Select `Koliath-Technology/website`.
 3. Set the deploy branch to `cursor/local-testing-earn-contact-ddd3` until this PR merges. After merge, use `solver/shipping-bar-fixes` if that is still the default branch.
-4. Railway reads [`railway.toml`](railway.toml): install via the root `package.json` (`postinstall` installs frontend and backend, including Vite’s dev dependencies), build with `npm run build`, start with `npm start`.
+4. Railway reads [`railway.toml`](railway.toml) and [`nixpacks.toml`](nixpacks.toml). The build uses **Node 22** (`NIXPACKS_NODE_VERSION=22`, Nix package `nodejs_22`, and root `engines.node`). Vite 7 does not build on Node 18. Install runs from the root `package.json` (`postinstall` installs frontend and backend, including Vite’s dev dependencies), then `npm run build`, then `npm start`.
 
 Add the **Postgres** plugin to the same project and attach its `DATABASE_URL` to this service. Do not paste a guessed connection string.
 
