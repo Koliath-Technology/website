@@ -1,5 +1,6 @@
 const POSTGRES_URL = /postgres(?:ql)?:\/\/[^\s'"]+/gi
 const JWT = /eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g
+const PEM = /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g
 
 /** Strip connection strings and bearer-like tokens before anything is logged. */
 export function redact(value: unknown): string {
@@ -9,7 +10,10 @@ export function redact(value: unknown): string {
             : typeof value === "string"
               ? value
               : "request failed"
-    return text.replace(POSTGRES_URL, "postgres://[redacted]").replace(JWT, "[redacted-jwt]")
+    return text
+        .replace(PEM, "[redacted-private-key]")
+        .replace(POSTGRES_URL, "postgres://[redacted]")
+        .replace(JWT, "[redacted-jwt]")
 }
 
 export function logError(label: string, error: unknown): void {

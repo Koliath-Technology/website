@@ -20,7 +20,7 @@ export default defineConfig(({ mode }) => {
     if (blocked.length > 0) {
         throw new Error(
             `Refusing to expose secret-like variables to the client bundle: ${blocked.join(", ")}. ` +
-                "Only public values such as VITE_GOOGLE_CLIENT_ID belong in VITE_ variables."
+                "Only public values such as VITE_FIREBASE_API_KEY belong in VITE_ variables."
         )
     }
 

@@ -26,7 +26,7 @@ Leave the placeholders blank for a UI smoke test. Do not commit `.env` files.
 
 - Frontend calls same-origin `/api`. Vite proxies that to `http://localhost:3000` in dev only. That proxy is not part of the production bundle.
 - Do not set `VITE_API_BASE=http://localhost:3000` for a production build. Production ignores a localhost API base and uses same-origin `/api`.
-- Google Sign-In stays off until `VITE_GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_ID` are the same OAuth Web client id.
+- Google sign-in stays off until the public `VITE_FIREBASE_*` web config is set and the frontend is restarted or rebuilt. The API still rejects tokens until `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, and `FIREBASE_PRIVATE_KEY` are set. Steps are in [SECURITY_AUDIT.md](SECURITY_AUDIT.md).
 - Postgres (`DATABASE_URL`) is only needed for sign-in, rewards, careers, and referral validation. Contact logging and `/health` do not need it.
 
 ## 3. Run
@@ -105,6 +105,6 @@ grep -R "localhost:3000" frontend/dist/assets && echo "FAIL" || echo "OK: no loc
 
 See [RAILWAY.md](RAILWAY.md). One service builds both packages and runs the API. You do not need a separate static host or an nginx SPA fallback.
 
-Set `NODE_ENV=production`. `DATABASE_URL` must be the Railway Postgres plugin URL. `GOOGLE_CLIENT_ID` and `APP_WEBHOOK_SECRET` must be real values you create — this repo does not contain them. Set `CORS_ORIGINS=https://koliath.in,https://www.koliath.in`. Leave `VITE_API_BASE` unset.
+Set `NODE_ENV=production`. `DATABASE_URL` must be the Railway Postgres plugin URL. `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`, and `APP_WEBHOOK_SECRET` must be real values you create — this repo does not contain them. Set the public `VITE_FIREBASE_*` web fields at build time. Set `CORS_ORIGINS=https://koliath.in,https://www.koliath.in`. Leave `VITE_API_BASE` unset.
 
 There are no `/legal/*` pages. If you add them as client routes, the same `index.html` fallback covers them.

@@ -15,8 +15,9 @@ import {
     requireAuth,
     requireAppWebhook,
     setSessionCookies,
-    verifyGoogleIdToken,
+    verifyFirebaseIdToken,
 } from "./auth"
+import { firebaseCredentialStatus } from "./firebaseCredentials"
 import { listPublicRules } from "./rules"
 import {
     careersSchema,
@@ -61,7 +62,7 @@ app.use(
                 objectSrc: ["'none'"],
                 frameAncestors: ["'self'"],
                 formAction: ["'self'"],
-                scriptSrc: ["'self'", "https://accounts.google.com"],
+                scriptSrc: ["'self'", "https://accounts.google.com", "https://apis.google.com"],
                 styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
                 fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
                 imgSrc: [
@@ -70,8 +71,20 @@ app.use(
                     "https://*.googleusercontent.com",
                     "https://*.gstatic.com",
                 ],
-                connectSrc: ["'self'", "https://accounts.google.com", "https://oauth2.googleapis.com"],
-                frameSrc: ["https://accounts.google.com"],
+                connectSrc: [
+                    "'self'",
+                    "https://accounts.google.com",
+                    "https://identitytoolkit.googleapis.com",
+                    "https://securetoken.googleapis.com",
+                    "https://www.googleapis.com",
+                    "https://apis.google.com",
+                ],
+                frameSrc: [
+                    "https://accounts.google.com",
+                    "https://*.firebaseapp.com",
+                    "https://*.web.app",
+                    "https://apis.google.com",
+                ],
                 // TLS is terminated by Railway. Forcing an upgrade here breaks
                 // the documented local HTTP smoke test.
                 upgradeInsecureRequests: null,
@@ -220,15 +233,15 @@ async function submitCareer(req: express.Request, res: express.Response) {
 app.post("/careers", careerLimiter, submitCareer)
 app.post("/api/careers", careerLimiter, submitCareer)
 
-/** Exchange Google ID token for a browser session cookie and profile. */
-app.post("/api/auth/google", authLimiter, async (req, res) => {
+/** Exchange a Firebase ID token (Google sign-in) for a browser session cookie. */
+async function establishSession(req: express.Request, res: express.Response) {
     const body = googleSessionSchema.safeParse(req.body)
     if (!body.success) {
         return res.status(400).json({ success: false, message: "idToken is required" })
     }
 
     try {
-        const authUser = await verifyGoogleIdToken(body.data.idToken)
+        const authUser = await verifyFirebaseIdToken(body.data.idToken)
         const user = await upsertGlobalUser(authUser)
         const dashboard = await getDashboardForUser(user.id)
         setSessionCookies(res, body.data.idToken, authUser.expiresAt)
@@ -238,11 +251,14 @@ app.post("/api/auth/google", authLimiter, async (req, res) => {
             user: dashboard,
         })
     } catch (e: unknown) {
-        logError("google sign-in failed", e)
+        logError("firebase sign-in failed", e)
         const { status, message } = authFailure(e)
         res.status(status).json({ success: false, message })
     }
-})
+}
+
+app.post("/api/auth/google", authLimiter, establishSession)
+app.post("/api/auth/firebase", authLimiter, establishSession)
 
 app.post("/api/auth/logout", (req, res) => {
     const hasSession = typeof req.cookies?.[SESSION_COOKIE] === "string" && req.cookies[SESSION_COOKIE]
@@ -565,4 +581,10 @@ app.use((err: unknown, _req: express.Request, res: express.Response, _next: expr
 
 app.listen(config.port, () => {
     console.log(`Koliath listening on port ${config.port}`)
+    const firebaseStatus = firebaseCredentialStatus()
+    if (!firebaseStatus.configured) {
+        const line = `Firebase Admin is not configured (${firebaseStatus.missing.join(", ")}). Login and protected routes fail closed.`
+        if (config.isProd) console.error(line)
+        else console.warn(line)
+    }
 })

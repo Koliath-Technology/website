@@ -18,3 +18,9 @@ frontend/dist/
 *.tsbuildinfo
 
 .DS_Store
+
+# Firebase secret files. Public web config belongs in env placeholders, not JSON.
+**/google-services.json
+**/GoogleService-Info.plist
+**/*firebase-adminsdk*.json
+**/serviceAccount*.json

@@ -56,7 +56,7 @@ Step-by-step commands and the URLs to click are in [LOCAL_TESTING.md](LOCAL_TEST
 ```bash
 cd backend
 cp .env.example .env
-# set GOOGLE_CLIENT_ID, APP_WEBHOOK_SECRET, DATABASE_URL
+# set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, APP_WEBHOOK_SECRET, DATABASE_URL
 npm install
 npm run dev
 ```
@@ -66,16 +66,14 @@ npm run dev
 ```bash
 cd frontend
 cp .env.example .env
-# set VITE_GOOGLE_CLIENT_ID to the same OAuth Web client ID
+# set VITE_FIREBASE_API_KEY, VITE_FIREBASE_AUTH_DOMAIN, VITE_FIREBASE_PROJECT_ID, VITE_FIREBASE_APP_ID
 npm install
 npm run dev
 ```
 
-### Google Cloud console
+### Firebase console
 
-1. Create an OAuth 2.0 **Web** client.
-2. Authorized JavaScript origins: `http://localhost:5173`, `https://koliath.in`
-3. Authorized redirect URIs: same origins (GIS popup flow).
+Enable Google sign-in, add a web app, and create a service account as described in [SECURITY_AUDIT.md](SECURITY_AUDIT.md). Authorized domains include `localhost`, `koliath.in`, and `www.koliath.in`. Do not commit the service-account JSON.
 
 ## Production (koliath.in)
 
@@ -85,7 +83,7 @@ Deploy one Railway service. Steps, env vars, and the Cloudflare DNS note are in 
 
 ## Security practices included
 
-- Google ID tokens verified with `google-auth-library` (audience-bound)
+- Firebase ID tokens from Google sign-in verified with Firebase Admin `verifyIdToken`
 - Browser session is an httpOnly cookie; mobile apps keep `Authorization: Bearer`
 - Helmet (including CSP), CORS allowlist, JSON body size limit, rate limits
 - Redeem / stats require authenticated ownership of the global account
@@ -97,12 +95,12 @@ See [SECURITY_AUDIT.md](SECURITY_AUDIT.md) for the review and what was changed.
 
 ## Linking mobile apps
 
-After Google sign-in on `/login` or `/earn`, apps can call (with the user’s Google ID token):
+After Google sign-in on `/login` or `/earn`, apps can call with the user’s **Firebase** ID token (the same Google account, verified by Firebase Admin):
 
 ```http
 POST /api/me/link-app
-Authorization: Bearer <google-id-token>
-{ "sourceApp": "sapient", "appUid": "<firebase-uid>", "referralCode": "SP-XXXX" }
+Authorization: Bearer <firebase-id-token>
+{ "sourceApp": "sapient", "appUid": "<app-uid>", "referralCode": "SP-XXXX" }
 ```
 
 Using the **same Google email** across apps is what unifies the global ledger.

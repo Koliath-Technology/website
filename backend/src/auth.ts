@@ -1,11 +1,13 @@
 import { randomBytes } from "crypto"
 import type { Request, Response, NextFunction } from "express"
-import { OAuth2Client } from "google-auth-library"
+import { cert, getApps, initializeApp, type App } from "firebase-admin/app"
+import { getAuth, type DecodedIdToken } from "firebase-admin/auth"
 import { config } from "./config"
+import { firebaseCredentialStatus, normalizePrivateKey } from "./firebaseCredentials"
 import { logError } from "./redact"
 import { secretsEqual } from "./secrets"
 
-const client = new OAuth2Client(config.googleClientId)
+const MAX_ID_TOKEN_LENGTH = 8192
 
 export const SESSION_COOKIE = "koliath_session"
 export const CSRF_COOKIE = "koliath_csrf"
@@ -45,33 +47,76 @@ export function safePictureUrl(url: string | null | undefined): string | undefin
     }
 }
 
-export async function verifyGoogleIdToken(idToken: string): Promise<AuthUser> {
-    if (!config.googleClientId) {
-        throw Object.assign(new Error("Google Sign-In is not configured"), { status: 503 })
+let adminApp: App | undefined
+
+function firebaseAdminApp(): App {
+    if (!firebaseCredentialStatus().configured) {
+        throw Object.assign(new Error("Firebase Auth is not configured"), { status: 503 })
     }
-    if (idToken.length > 4096) {
-        throw Object.assign(new Error("Invalid Google token"), { status: 401 })
+    if (adminApp) return adminApp
+    const existing = getApps()[0]
+    if (existing) {
+        adminApp = existing
+        return existing
+    }
+    try {
+        adminApp = initializeApp({
+            credential: cert({
+                projectId: config.firebaseProjectId,
+                clientEmail: config.firebaseClientEmail,
+                privateKey: normalizePrivateKey(config.firebasePrivateKey),
+            }),
+        })
+        return adminApp
+    } catch (error) {
+        logError("firebase admin init failed", error)
+        throw Object.assign(new Error("Firebase Auth is not configured"), { status: 503 })
+    }
+}
+
+function googleSubject(decoded: DecodedIdToken): string | null {
+    if (decoded.firebase?.sign_in_provider !== "google.com") return null
+    const identities = decoded.firebase.identities?.["google.com"]
+    const subject = Array.isArray(identities) ? identities[0] : undefined
+    return typeof subject === "string" && subject.length > 0 ? subject : null
+}
+
+/**
+ * Verifies a Firebase ID token from Google sign-in.
+ * The account key stays the Google subject inside the Firebase token so the
+ * existing global_users.google_sub ledger does not fork onto a Firebase uid.
+ */
+export async function verifyFirebaseIdToken(idToken: string): Promise<AuthUser> {
+    if (idToken.length > MAX_ID_TOKEN_LENGTH) {
+        throw Object.assign(new Error("Invalid Firebase token"), { status: 401 })
     }
 
-    const ticket = await client.verifyIdToken({
-        idToken,
-        audience: config.googleClientId,
-    })
-    const payload = ticket.getPayload()
-    if (!payload?.sub || !payload.email) {
-        throw Object.assign(new Error("Invalid Google token"), { status: 401 })
-    }
-    if (payload.email_verified === false) {
-        throw Object.assign(new Error("Email not verified with Google"), { status: 401 })
+    let decoded: DecodedIdToken
+    try {
+        decoded = await getAuth(firebaseAdminApp()).verifyIdToken(idToken)
+    } catch (error: unknown) {
+        const status =
+            typeof error === "object" && error && "status" in error
+                ? Number((error as { status: number }).status)
+                : 401
+        if (status === 503) throw error
+        logError("firebase token rejected", error)
+        throw Object.assign(new Error("Invalid Firebase token"), { status: 401 })
     }
 
+    const subject = googleSubject(decoded)
+    if (!subject || !decoded.email || decoded.email_verified === false) {
+        throw Object.assign(new Error("Google account not verified"), { status: 401 })
+    }
+
+    const profile = decoded as DecodedIdToken & { name?: string; picture?: string }
     return {
-        googleSub: payload.sub,
-        email: payload.email.toLowerCase(),
-        name: payload.name ?? payload.email,
-        picture: safePictureUrl(payload.picture),
+        googleSub: subject,
+        email: decoded.email.toLowerCase(),
+        name: profile.name ?? decoded.email,
+        picture: safePictureUrl(profile.picture),
         emailVerified: true,
-        expiresAt: payload.exp ?? Math.floor(Date.now() / 1000) + 50 * 60,
+        expiresAt: decoded.exp,
     }
 }
 
@@ -121,13 +166,13 @@ export function authFailure(error: unknown): { status: number; message: string }
         typeof error === "object" && error && "status" in error
             ? Number((error as { status: number }).status)
             : 401
-    if (status === 503) return { status: 503, message: "Google Sign-In is not configured" }
+    if (status === 503) return { status: 503, message: "Firebase Auth is not configured" }
     if (status === 403) return { status: 403, message: "Forbidden" }
     return { status: 401, message: "Authentication failed" }
 }
 
 /**
- * Google ID token via Authorization: Bearer (mobile apps) or the httpOnly
+ * Firebase ID token via Authorization: Bearer (mobile apps) or the httpOnly
  * session cookie (browser). Cookie-authenticated mutations also need the
  * CSRF header that matches koliath_csrf.
  */
@@ -142,7 +187,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
         if (!token) {
             return res.status(401).json({ success: false, message: "Authentication required" })
         }
-        req.authUser = await verifyGoogleIdToken(token)
+        req.authUser = await verifyFirebaseIdToken(token)
         return next()
     } catch (error: unknown) {
         logError("auth rejected", error)
@@ -156,7 +201,7 @@ export async function optionalAuth(req: Request, _res: Response, next: NextFunct
     try {
         const token = extractBearer(req) ?? sessionToken(req)
         if (token) {
-            req.authUser = await verifyGoogleIdToken(token)
+            req.authUser = await verifyFirebaseIdToken(token)
         }
     } catch (error: unknown) {
         logError("optional auth ignored", error)

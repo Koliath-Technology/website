@@ -113,7 +113,7 @@ export interface Reward {
 }
 
 export async function exchangeGoogleToken(idToken: string): Promise<DashboardUser> {
-    const response = await fetch(`${API_ROOT}/api/auth/google`, {
+    const response = await fetch(`${API_ROOT}/api/auth/firebase`, {
         method: "POST",
         credentials: "include",
         headers: authHeaders(false),

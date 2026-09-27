@@ -3,6 +3,7 @@ import test from "node:test"
 import { secretsEqual } from "./secrets"
 import { redact } from "./redact"
 import { databasePoolConfig } from "./pgSsl"
+import { firebaseCredentialStatus, normalizePrivateKey } from "./firebaseCredentials"
 
 test("secretsEqual matches identical values and rejects others", () => {
     assert.equal(secretsEqual("same-secret", "same-secret"), true)
@@ -35,4 +36,30 @@ test("database SSL is strict only when requested, and local URLs stay plain", ()
     )
     assert.deepEqual(strict.ssl, { rejectUnauthorized: true })
     assert.equal(strict.connectionString.includes("sslmode"), false)
+})
+
+test("firebase admin credentials are incomplete until all three env vars are set", () => {
+    const empty = firebaseCredentialStatus({} as NodeJS.ProcessEnv)
+    assert.equal(empty.configured, false)
+    assert.deepEqual(empty.missing, [
+        "FIREBASE_PROJECT_ID",
+        "FIREBASE_CLIENT_EMAIL",
+        "FIREBASE_PRIVATE_KEY",
+    ])
+
+    const ready = firebaseCredentialStatus({
+        FIREBASE_PROJECT_ID: "your-project-id",
+        FIREBASE_CLIENT_EMAIL: "firebase-adminsdk@your-project-id.iam.gserviceaccount.com",
+        FIREBASE_PRIVATE_KEY: "present",
+    } as NodeJS.ProcessEnv)
+    assert.equal(ready.configured, true)
+})
+
+test("firebase private key newlines are unescaped and non-PEM values are rejected", () => {
+    const begin = "-----BEGIN " + "PRIVATE KEY-----"
+    const end = "-----END " + "PRIVATE KEY-----"
+    const key = normalizePrivateKey(`${begin}\\nexample\\n${end}`)
+    assert.equal(key.includes("\\n"), false)
+    assert.equal(key.split("\n")[0], begin)
+    assert.throws(() => normalizePrivateKey("not-a-key"))
 })

@@ -1,15 +1,14 @@
-import { GoogleLogin } from "@react-oauth/google"
 import { Loader2 } from "lucide-react"
 import { useState } from "react"
 import { useAuth } from "../lib/auth"
 
 /**
- * Google Sign-In button. The control stays in the tree when the client id is
- * missing so Login is still a visible path; the button itself needs the public
- * OAuth client id at build time.
+ * Google sign-in through Firebase Auth. The Login path stays visible when the
+ * public web config is missing; the button calls Firebase only after that
+ * config is present at build time.
  */
 export function GoogleSignIn() {
-    const { user, loading, configured, signInWithCredential } = useAuth()
+    const { user, loading, configured, signInWithGoogle } = useAuth()
     const [authError, setAuthError] = useState<string | null>(null)
 
     if (user) return null
@@ -17,10 +16,13 @@ export function GoogleSignIn() {
     if (!configured) {
         return (
             <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 max-w-md">
-                Login with Google is not turned on for this build. Set the public{" "}
-                <code className="font-mono">VITE_GOOGLE_CLIENT_ID</code> (same value as the
-                server <code className="font-mono">GOOGLE_CLIENT_ID</code>) and rebuild. Do not
-                put a client secret in a <code className="font-mono">VITE_</code> variable.
+                Login with Google uses Firebase Auth. This build is missing the public web
+                config (<code className="font-mono">VITE_FIREBASE_API_KEY</code>,{" "}
+                <code className="font-mono">VITE_FIREBASE_AUTH_DOMAIN</code>,{" "}
+                <code className="font-mono">VITE_FIREBASE_PROJECT_ID</code>,{" "}
+                <code className="font-mono">VITE_FIREBASE_APP_ID</code>). Rebuild after setting
+                those. Do not put a service-account private key in a{" "}
+                <code className="font-mono">VITE_</code> variable.
             </p>
         )
     }
@@ -31,25 +33,18 @@ export function GoogleSignIn() {
 
     return (
         <div className="flex flex-col items-center gap-3">
-            <div className="rounded-2xl overflow-hidden shadow-lg">
-                <GoogleLogin
-                    onSuccess={async (res) => {
-                        if (!res.credential) return
-                        setAuthError(null)
-                        try {
-                            await signInWithCredential(res.credential)
-                        } catch (e) {
-                            setAuthError(e instanceof Error ? e.message : "Sign-in failed")
-                        }
-                    }}
-                    onError={() => setAuthError("Google Sign-In failed")}
-                    theme="filled_black"
-                    shape="pill"
-                    size="large"
-                    text="continue_with"
-                    useOneTap={false}
-                />
-            </div>
+            <button
+                type="button"
+                onClick={() => {
+                    setAuthError(null)
+                    void signInWithGoogle().catch((error: unknown) => {
+                        setAuthError(error instanceof Error ? error.message : "Sign-in failed")
+                    })
+                }}
+                className="inline-flex items-center rounded-full bg-[var(--ink)] text-white px-6 py-3 text-sm hover:opacity-90"
+            >
+                Continue with Google
+            </button>
             {authError && <p className="text-sm text-red-600">{authError}</p>}
         </div>
     )
