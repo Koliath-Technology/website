@@ -32,7 +32,7 @@ export function HeroSection() {
                     initial={{ opacity: 0, y: 16 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5, delay: 0.08 }}
-                    className="text-xl md:text-2xl text-[var(--ink)]/85 max-w-xl mb-4 font-medium"
+                    className="text-xl md:text-2xl text-[var(--ink)] max-w-xl mb-4 font-medium"
                 >
                     A product studio and the hub for its apps.
                 </motion.h1>

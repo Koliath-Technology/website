@@ -66,7 +66,7 @@ The journey from a Jupyter notebook to a scalable, production-ready AI product i
                     {/* Sidebar */}
                     <aside className="lg:col-span-1">
                         <div className="lg:sticky lg:top-8 space-y-2">
-                            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">
+                            <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide mb-4">
                                 Recent Posts
                             </h2>
                             {blogs.map((blog, index) => (
@@ -76,7 +76,7 @@ The journey from a Jupyter notebook to a scalable, production-ready AI product i
                                     className={`w-full text-left py-3 px-4 border-l-2 transition-all duration-200 group ${
                                         selectedBlog === index
                                             ? "border-blue-600 text-blue-600 bg-blue-50/50"
-                                            : "border-transparent hover:border-gray-200 text-gray-600 hover:text-gray-900"
+                                            : "border-transparent hover:border-gray-200 text-gray-900"
                                     }`}
                                 >
                                     <div className="flex items-start justify-between">
@@ -94,7 +94,7 @@ The journey from a Jupyter notebook to a scalable, production-ready AI product i
                                                 className={`text-sm ${
                                                     selectedBlog === index
                                                         ? "text-blue-600/80"
-                                                        : "text-gray-500"
+                                                        : "text-gray-800"
                                                 }`}
                                             >
                                                 {blog.date}
@@ -104,7 +104,7 @@ The journey from a Jupyter notebook to a scalable, production-ready AI product i
                                             className={`w-5 h-5 ml-2 transition-transform group-hover:translate-x-1 flex-shrink-0 ${
                                                 selectedBlog === index
                                                     ? "text-blue-600"
-                                                    : "text-gray-400"
+                                                    : "text-gray-800"
                                             }`}
                                         />
                                     </div>
@@ -126,7 +126,7 @@ The journey from a Jupyter notebook to a scalable, production-ready AI product i
                             </div>
 
                             {/* Meta Information */}
-                            <div className="flex items-center space-x-6 text-sm text-gray-500 mb-6">
+                            <div className="flex items-center space-x-6 text-sm text-gray-800 mb-6">
                                 <span className="flex items-center">
                                     <Calendar className="w-4 h-4 mr-2" />
                                     {currentBlog.date}
@@ -149,7 +149,7 @@ The journey from a Jupyter notebook to a scalable, production-ready AI product i
                                     .map((paragraph, index) => (
                                         <p
                                             key={index}
-                                            className="text-gray-700 leading-relaxed mb-6 text-lg"
+                                            className="text-gray-900 leading-relaxed mb-6 text-lg"
                                             style={{
                                                 animationDelay: `${
                                                     index * 100
@@ -169,7 +169,7 @@ The journey from a Jupyter notebook to a scalable, production-ready AI product i
                                         onClick={() =>
                                             setSelectedBlog(selectedBlog - 1)
                                         }
-                                        className="flex items-center text-gray-900 hover:text-gray-600 transition disabled:opacity-30 disabled:cursor-not-allowed group"
+                                        className="flex items-center text-gray-900 transition disabled:opacity-30 disabled:cursor-not-allowed group"
                                     >
                                         <ArrowRight className="w-5 h-5 mr-2 rotate-180 transition-transform group-hover:-translate-x-1" />
                                         <span className="font-medium">
@@ -183,7 +183,7 @@ The journey from a Jupyter notebook to a scalable, production-ready AI product i
                                         onClick={() =>
                                             setSelectedBlog(selectedBlog + 1)
                                         }
-                                        className="flex items-center text-gray-900 hover:text-gray-600 transition disabled:opacity-30 disabled:cursor-not-allowed group"
+                                        className="flex items-center text-gray-900 transition disabled:opacity-30 disabled:cursor-not-allowed group"
                                     >
                                         <span className="font-medium">
                                             Next

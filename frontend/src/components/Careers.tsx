@@ -3,7 +3,6 @@ import { WhyWorkWithUs } from "../components/why-work-with-us"
 // import { JobListings } from "../components/job-listings"
 // import { Testimonials } from "../components/testimonials"
 import { CareersForm } from "../components/CareersForm"
-import "./CareersPage.css"
 import { motion } from "framer-motion"
 
 const sectionVariants = {

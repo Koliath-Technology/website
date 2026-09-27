@@ -34,7 +34,8 @@
   /* Brand surface — deep forest on parchment, not purple/cream AI defaults */
   --bg: #f3efe6;
   --ink: #14201c;
-  --muted: #5c6b64;
+  /* Dark gray for body, nav, and footer. Near-black, still distinct from --ink. */
+  --muted: #24302b;
   --line: #d7d0c3;
   --surface: #ebe5d9;
   --surface-deep: #ddd5c6;
@@ -78,6 +79,11 @@
   }
   .font-display {
     font-family: "Fraunces", "Times New Roman", serif;
+  }
+  input,
+  textarea,
+  select {
+    color: var(--ink);
   }
 }
 

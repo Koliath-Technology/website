@@ -120,7 +120,7 @@ export default function Home() {
 
 export function SiteFooter() {
     return (
-        <footer className="border-t border-[var(--line)] bg-[var(--surface)] text-[var(--muted)]">
+        <footer className="border-t border-[var(--line)] bg-[var(--surface)] text-[var(--ink)]">
             <div className="max-w-6xl mx-auto py-16 px-6">
                 <div className="grid md:grid-cols-4 gap-12 mb-12">
                     <div className="col-span-2">

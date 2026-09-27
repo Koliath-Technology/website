@@ -6,7 +6,7 @@ export const About: React.FC = () => (
                 <h1 className="text-5xl md:text-6xl font-semibold text-gray-900 mb-6 leading-tight">
                     We build AI that makes a difference
                 </h1>
-                <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
+                <p className="text-xl text-gray-900 max-w-3xl mx-auto leading-relaxed">
                     Founded in 2020, Koliath Technology is an AI product studio
                     at the frontier of machine intelligence—turning complex data
                     into products that transform industries and improve lives.
@@ -20,13 +20,13 @@ export const About: React.FC = () => (
                         <h2 className="text-3xl font-semibold text-gray-900 mb-6">
                             Our Mission
                         </h2>
-                        <p className="text-gray-600 leading-relaxed mb-4">
+                        <p className="text-gray-900 leading-relaxed mb-4">
                             We believe artificial intelligence should be
                             accessible, trustworthy, and genuinely useful. Our
                             mission is to architect and deliver AI-native
                             products that solve real problems for real people.
                         </p>
-                        <p className="text-gray-600 leading-relaxed">
+                        <p className="text-gray-900 leading-relaxed">
                             Every day, we bridge the gap between cutting-edge
                             research and production-ready software—ensuring the
                             most advanced ML techniques translate into tangible
@@ -53,7 +53,7 @@ export const About: React.FC = () => (
                         <h3 className="text-xl font-semibold text-gray-900 mb-3">
                             Research-Driven
                         </h3>
-                        <p className="text-gray-600 leading-relaxed">
+                        <p className="text-gray-900 leading-relaxed">
                             We ground every product decision in peer-reviewed ML
                             research, turning the latest academic breakthroughs
                             into practical, deployable solutions.
@@ -64,7 +64,7 @@ export const About: React.FC = () => (
                         <h3 className="text-xl font-semibold text-gray-900 mb-3">
                             Human-Centered AI
                         </h3>
-                        <p className="text-gray-600 leading-relaxed">
+                        <p className="text-gray-900 leading-relaxed">
                             Great AI is invisible. We design intelligent systems
                             that feel natural and intuitive, amplifying human
                             capability without adding complexity.
@@ -75,7 +75,7 @@ export const About: React.FC = () => (
                         <h3 className="text-xl font-semibold text-gray-900 mb-3">
                             Relentless Quality
                         </h3>
-                        <p className="text-gray-600 leading-relaxed">
+                        <p className="text-gray-900 leading-relaxed">
                             From model accuracy to API latency, we hold our
                             engineering to the highest standards—because in AI,
                             small improvements compound into massive impact.
@@ -98,18 +98,18 @@ export const About: React.FC = () => (
                         <h2 className="text-3xl font-semibold text-gray-900 mb-6">
                             Our Team
                         </h2>
-                        <p className="text-gray-600 leading-relaxed mb-4">
+                        <p className="text-gray-900 leading-relaxed mb-4">
                             We are ML engineers, data scientists, and product
                             designers united by a single mission: making AI
                             genuinely useful for the people who use it.
                         </p>
-                        <p className="text-gray-600 leading-relaxed mb-4">
+                        <p className="text-gray-900 leading-relaxed mb-4">
                             Our team brings experience from leading research
                             labs, Fortune 500 engineering organizations, and
                             high-growth startups—giving us a rare blend of
                             theoretical depth and practical execution.
                         </p>
-                        <p className="text-gray-600 leading-relaxed">
+                        <p className="text-gray-900 leading-relaxed">
                             We operate with radical transparency and a bias for
                             action. Good ideas win, regardless of where they
                             come from.
@@ -145,7 +145,7 @@ export const About: React.FC = () => (
                 <h2 className="text-3xl font-semibold text-gray-900 mb-6">
                     Want to work with us?
                 </h2>
-                <p className="text-gray-600 mb-8 max-w-2xl mx-auto">
+                <p className="text-gray-900 mb-8 max-w-2xl mx-auto">
                     We're always looking for talented individuals who share our
                     passion for innovation and excellence.
                 </p>

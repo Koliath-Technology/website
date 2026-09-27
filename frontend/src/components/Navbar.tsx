@@ -33,7 +33,7 @@ const Navbar: React.FC = () => {
                                 `px-3.5 py-2 text-sm transition-colors rounded-full ${
                                     isActive
                                         ? "text-[var(--ink)] bg-black/[0.04]"
-                                        : "text-[var(--muted)] hover:text-[var(--ink)]"
+                                        : "text-[var(--ink)] hover:opacity-70"
                                 }`
                             }
                         >
@@ -74,7 +74,7 @@ const Navbar: React.FC = () => {
                             onClick={() => setOpen(false)}
                             className={({ isActive }) =>
                                 `block px-3 py-3 rounded-xl text-sm ${
-                                    isActive ? "bg-black/[0.04] text-[var(--ink)]" : "text-[var(--muted)]"
+                                    isActive ? "bg-black/[0.04] text-[var(--ink)]" : "text-[var(--ink)]"
                                 }`
                             }
                         >

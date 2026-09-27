@@ -29,6 +29,10 @@ export default defineConfig({
             "/careers": {
                 target: "http://localhost:3000",
                 changeOrigin: true,
+                // GET /careers is the brochure page. Only the application POST goes to the API.
+                bypass(req) {
+                    if (req.method !== "POST") return "/index.html"
+                },
             },
             "/health": {
                 target: "http://localhost:3000",
