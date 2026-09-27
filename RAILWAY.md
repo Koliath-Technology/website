@@ -20,7 +20,7 @@ Set these on the Railway service before the first deploy. Railway exposes them t
 | Variable | Value |
 |----------|--------|
 | `NODE_ENV` | `production` |
-| `DATABASE_URL` | From the Railway Postgres plugin (`${{Postgres.DATABASE_URL}}`) |
+| `DATABASE_URL` | From the Railway Postgres plugin (`${{Postgres.DATABASE_URL}}`). The API accepts Railway’s certificate (`rejectUnauthorized: false`). The process still exits if this variable is missing. |
 | `GOOGLE_CLIENT_ID` | Your Google OAuth Web client id. Same value as `VITE_GOOGLE_CLIENT_ID`. |
 | `VITE_GOOGLE_CLIENT_ID` | Same Web client id. Required at **build** time or Sign-In stays off. |
 | `APP_WEBHOOK_SECRET` | A long random string you generate and store in Railway. Not in git. |

@@ -8,9 +8,35 @@ import type { AuthUser } from "./auth"
 
 export type Career = z.infer<typeof careersSchema>
 
+/**
+ * Railway's public proxy presents a certificate Node does not trust.
+ * `pg` also lets `sslmode` in the URL overwrite an `ssl` option, so strip it
+ * and set `rejectUnauthorized: false` for any non-local database.
+ * Local Postgres stays without SSL. A missing DATABASE_URL still fails in production.
+ */
+function databasePoolConfig(databaseUrl: string): {
+    connectionString: string
+    ssl?: { rejectUnauthorized: false }
+} {
+    let host = ""
+    try {
+        host = new URL(databaseUrl).hostname
+    } catch {
+        host = databaseUrl.match(/@([^/:?#]+)/)?.[1] ?? ""
+    }
+    const local = host === "localhost" || host === "127.0.0.1" || host === "::1"
+    const sslDisabled = /[?&]sslmode=disable(?:&|$)/.test(databaseUrl)
+    if (local || sslDisabled) {
+        return { connectionString: databaseUrl }
+    }
+    const connectionString = databaseUrl
+        .replace(/([?&])sslmode=[^&]*&/g, "$1")
+        .replace(/([?&])sslmode=[^&]*$/g, "")
+    return { connectionString, ssl: { rejectUnauthorized: false } }
+}
+
 const pool = new Pool({
-    connectionString: config.databaseUrl,
-    ssl: config.isProd ? { rejectUnauthorized: true } : undefined,
+    ...databasePoolConfig(config.databaseUrl),
     max: 10,
 })
 

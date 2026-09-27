@@ -29,11 +29,32 @@ const pg_1 = require("pg");
 const types_1 = require("./types/types");
 const config_1 = require("./config");
 const rules_1 = require("./rules");
-const pool = new pg_1.Pool({
-    connectionString: config_1.config.databaseUrl,
-    ssl: config_1.config.isProd ? { rejectUnauthorized: true } : undefined,
-    max: 10,
-});
+/**
+ * Railway's public proxy presents a certificate Node does not trust.
+ * `pg` also lets `sslmode` in the URL overwrite an `ssl` option, so strip it
+ * and set `rejectUnauthorized: false` for any non-local database.
+ * Local Postgres stays without SSL. A missing DATABASE_URL still fails in production.
+ */
+function databasePoolConfig(databaseUrl) {
+    var _a, _b;
+    let host = "";
+    try {
+        host = new URL(databaseUrl).hostname;
+    }
+    catch (_c) {
+        host = (_b = (_a = databaseUrl.match(/@([^/:?#]+)/)) === null || _a === void 0 ? void 0 : _a[1]) !== null && _b !== void 0 ? _b : "";
+    }
+    const local = host === "localhost" || host === "127.0.0.1" || host === "::1";
+    const sslDisabled = /[?&]sslmode=disable(?:&|$)/.test(databaseUrl);
+    if (local || sslDisabled) {
+        return { connectionString: databaseUrl };
+    }
+    const connectionString = databaseUrl
+        .replace(/([?&])sslmode=[^&]*&/g, "$1")
+        .replace(/([?&])sslmode=[^&]*$/g, "");
+    return { connectionString, ssl: { rejectUnauthorized: false } };
+}
+const pool = new pg_1.Pool(Object.assign(Object.assign({}, databasePoolConfig(config_1.config.databaseUrl)), { max: 10 }));
 function mintGlobalCode() {
     return `KL-${(0, crypto_1.randomBytes)(3).toString("hex").toUpperCase()}`;
 }
