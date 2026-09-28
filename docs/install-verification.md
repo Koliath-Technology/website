@@ -35,7 +35,7 @@ States: `DOWNLOAD_STARTED` → `PENDING_VERIFICATION` → `VERIFIED` → `REWARD
 | `fraud_events` | Rule id, severity, and action |
 | `verification_attempts` | Outcome counts for velocity limits |
 
-Catalog slugs seeded for the website: `sapient`, `adverts`, `adverts-rewards`, `advert-cohort`, `diabetic-buddy`. Those rows have no owner. Only an admin Google subject can mint their API secrets.
+Catalog slugs seeded for the website: `sapient`, `adverts`, `adverts-rewards`, `advert-cohort`, `diabetic-buddy`. Those rows have no owner. Only an allowlisted admin (Google provider subject or Firebase Auth uid in `ADMIN_GOOGLE_SUBS`) can mint their API secrets.
 
 Referral tables (`referral_codes`, `referral_events`, `referral_balances`, qualify webhooks) are separate. Install points are added into the `/api/me` available balance and can be spent by the existing redemption path. The referral qualification rules are not changed.
 

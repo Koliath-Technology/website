@@ -11,7 +11,7 @@ Railway already runs one Node service. No new service is required. Do not put th
 | Variable | Purpose |
 | --- | --- |
 | `DATABASE_URL` | Existing Postgres URL. Install tables are created in this database. |
-| `ADMIN_GOOGLE_SUBS` | Comma-separated `global_users.google_sub` values allowed to call `/api/admin/verification`. Empty means nobody. |
+| `ADMIN_GOOGLE_SUBS` | Comma-separated Google provider subjects (`global_users.google_sub`) or Firebase Auth uids allowed to call `/api/admin/verification`. Empty means nobody. |
 | `INSTALL_TOKEN_TTL_SECONDS` | Verification token lifetime. Default 1800. Clamped to 60–86400. |
 | `INSTALL_IP_HASH_SALT` | Secret salt for IP velocity hashes. Set a long random value in production. |
 | `INSTALL_REQUIRE_ATTESTATION` | Set to `true` to require Play Integrity / App Attest on every verify. The v1 stubs then fail closed and no install reward is granted. Leave unset for the default, where attestation is optional and client ids are fraud signals only. |
@@ -26,7 +26,7 @@ Find a Google subject after the person has signed in:
 SELECT google_sub, email FROM global_users WHERE email = 'person@example.com';
 ```
 
-Use `google_sub`, not the email, in `ADMIN_GOOGLE_SUBS`.
+Use `google_sub` or the Firebase Auth uid, not the email, in `ADMIN_GOOGLE_SUBS`.
 
 ## Catalog credentials
 

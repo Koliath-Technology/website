@@ -1,5 +1,6 @@
 import { Router } from "express"
 import rateLimit from "express-rate-limit"
+import { isAdminSubject } from "../admin/guard"
 import { requireAuth } from "../auth"
 import { config } from "../config"
 import { getGlobalUserByGoogleSub, upsertGlobalUser } from "../db"
@@ -32,10 +33,6 @@ const credentialLimiter = rateLimit({
     legacyHeaders: false,
     message: { success: false, message: "Too many credential rotations" },
 })
-
-function isAdmin(sub: string | undefined): boolean {
-    return Boolean(sub && config.adminGoogleSubs.includes(sub))
-}
 
 router.get("/apps", requireAuth, async (req, res) => {
     try {
@@ -100,7 +97,7 @@ router.get("/apps/:appId", requireAuth, async (req, res) => {
         const appId = String(req.params.appId)
         const app = await getAppByPublicId(appId)
         if (!app) return res.status(404).json({ success: false, message: "App not found" })
-        if (!canManageApp(app, user.id, isAdmin(req.authUser!.googleSub))) {
+        if (!canManageApp(app, user.id, isAdminSubject(req.authUser, config.adminGoogleSubs))) {
             return res.status(403).json({ success: false, message: "Forbidden" })
         }
         const [credentials, stats] = await Promise.all([
@@ -126,7 +123,7 @@ router.post("/apps/:appId/credentials", credentialLimiter, requireAuth, async (r
         if (!user) user = await upsertGlobalUser(req.authUser!)
         const app = await getAppByPublicId(String(req.params.appId))
         if (!app) return res.status(404).json({ success: false, message: "App not found" })
-        if (!canManageApp(app, user.id, isAdmin(req.authUser!.googleSub))) {
+        if (!canManageApp(app, user.id, isAdminSubject(req.authUser, config.adminGoogleSubs))) {
             return res.status(403).json({ success: false, message: "Forbidden" })
         }
         const credential = await issueAppCredential(app.id)

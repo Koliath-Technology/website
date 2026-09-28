@@ -38,7 +38,7 @@ The body is strict. `pointsAwarded` and `verificationConfig.requireAttestation` 
 
 The secret is returned once. The database stores `sha256(secret)` and the prefix before the dot. Calling the endpoint again revokes the previous secret.
 
-Catalog apps owned by Koliath have no developer owner. Minting their secret requires a Google subject in `ADMIN_GOOGLE_SUBS`.
+Catalog apps owned by Koliath have no developer owner. Minting their secret requires an account whose Google provider subject or Firebase Auth uid is in `ADMIN_GOOGLE_SUBS`.
 
 Send the secret as `Authorization: Bearer <secret>` or `X-Koliath-App-Secret`.
 

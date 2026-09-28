@@ -39,7 +39,10 @@ export const config = {
      * Set DATABASE_SSL_REJECT_UNAUTHORIZED=true when the certificate is trusted.
      */
     databaseSslRejectUnauthorized: process.env.DATABASE_SSL_REJECT_UNAUTHORIZED === "true",
-    /** Google subjects allowed to open the install verification admin API. Empty denies everyone. */
+    /**
+     * Google provider subjects or Firebase Auth uids allowed to open the admin API.
+     * Empty denies everyone.
+     */
     adminGoogleSubs: (process.env.ADMIN_GOOGLE_SUBS ?? "")
         .split(",")
         .map((value) => value.trim())

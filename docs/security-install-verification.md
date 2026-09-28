@@ -47,7 +47,7 @@ Signals include a repeated device/app reward, an `installation_id` already linke
 
 ## Admin
 
-`/api/admin/verification/*` requires a signed-in Google subject listed in `ADMIN_GOOGLE_SUBS`. An empty list denies everyone. The admin UI is the same check; hiding a link is not the control.
+`/api/admin/verification/*` requires a signed-in account whose Google provider subject or Firebase Auth uid is listed in `ADMIN_GOOGLE_SUBS`. An empty list denies everyone. The admin UI is the same check; hiding a link is not the control.
 
 ## Privacy minimisation
 
