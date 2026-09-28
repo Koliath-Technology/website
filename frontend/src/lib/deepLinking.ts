@@ -28,14 +28,27 @@ export const generateBranchLink = async (referralCode: string): Promise<string> 
     
     // Fallback/Placeholder: return a simulated Branch link or direct deep link.
     console.log("Generating Branch link for code:", referralCode);
-    return `https://diabeticbuddy.app.link/referral?code=${referralCode}`;
+    return `https://diabeticbuddy.app.link/referral?code=${encodeURIComponent(referralCode)}`;
 };
 
+function safeReferralCode(referralCode?: string | null): string | null {
+    if (!referralCode) return null
+    const normalized = referralCode.trim().toUpperCase()
+    if (!/^[A-Z0-9-]{4,20}$/.test(normalized)) return null
+    return normalized
+}
+
 export const handleAppDownload = async (referralCode?: string | null) => {
-    if (referralCode) {
+    const code = safeReferralCode(referralCode)
+    if (code) {
         try {
-            const link = await generateBranchLink(referralCode);
-            window.location.href = link;
+            const link = await generateBranchLink(code);
+            const target = new URL(link)
+            if (target.protocol !== "https:") {
+                fallbackRedirect()
+                return
+            }
+            window.location.href = target.toString();
         } catch (e) {
             console.error("Failed to generate branch link", e);
             fallbackRedirect();

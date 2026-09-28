@@ -1,111 +1,125 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
-import { GoogleOAuthProvider, googleLogout } from "@react-oauth/google"
-import { exchangeGoogleToken, fetchMe, type DashboardUser } from "./api"
+import { onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut } from "firebase/auth"
+import { exchangeGoogleToken, fetchMe, logoutSession, type DashboardUser } from "./api"
+import { firebaseConfigured, getFirebaseAuth, googleProvider } from "./firebase"
 
-const TOKEN_KEY = "koliath_google_id_token"
-const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined
+/** Removed on boot. ID tokens are no longer stored in localStorage by this app. */
+const LEGACY_TOKEN_KEY = "koliath_google_id_token"
 
 interface AuthContextValue {
     user: DashboardUser | null
-    idToken: string | null
     loading: boolean
     configured: boolean
-    signInWithCredential: (credential: string) => Promise<void>
+    signInWithGoogle: () => Promise<void>
     signOut: () => void
     refresh: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
+function hasSessionCookie(): boolean {
+    return document.cookie.split("; ").some((part) => part.startsWith("koliath_csrf="))
+}
+
 function AuthInner({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<DashboardUser | null>(null)
-    const [idToken, setIdToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY))
     const [loading, setLoading] = useState(true)
 
     const refresh = useCallback(async () => {
-        const token = localStorage.getItem(TOKEN_KEY)
-        if (!token) {
+        const firebaseAuth = getFirebaseAuth()
+        if (firebaseAuth?.currentUser) {
+            try {
+                const token = await firebaseAuth.currentUser.getIdToken()
+                setUser(await exchangeGoogleToken(token))
+                return
+            } catch {
+                setUser(null)
+                return
+            } finally {
+                setLoading(false)
+            }
+        }
+        if (!hasSessionCookie()) {
             setUser(null)
-            setIdToken(null)
             setLoading(false)
             return
         }
         try {
-            const me = await fetchMe(token)
-            setUser(me)
-            setIdToken(token)
+            setUser(await fetchMe())
         } catch {
-            localStorage.removeItem(TOKEN_KEY)
             setUser(null)
-            setIdToken(null)
         } finally {
             setLoading(false)
         }
     }, [])
 
     useEffect(() => {
-        void refresh()
+        localStorage.removeItem(LEGACY_TOKEN_KEY)
+        const firebaseAuth = getFirebaseAuth()
+        if (!firebaseAuth) {
+            void refresh()
+            return
+        }
+        const unsubscribe = onAuthStateChanged(firebaseAuth, async (firebaseUser) => {
+            if (!firebaseUser) {
+                setUser(null)
+                setLoading(false)
+                return
+            }
+            try {
+                const token = await firebaseUser.getIdToken()
+                setUser(await exchangeGoogleToken(token))
+            } catch {
+                setUser(null)
+            } finally {
+                setLoading(false)
+            }
+        })
+        return () => unsubscribe()
     }, [refresh])
 
-    const signInWithCredential = useCallback(async (credential: string) => {
+    const signInWithGoogle = useCallback(async () => {
+        const firebaseAuth = getFirebaseAuth()
+        if (!firebaseAuth) {
+            throw new Error("Firebase Auth is not configured")
+        }
         setLoading(true)
         try {
-            const dashboard = await exchangeGoogleToken(credential)
-            localStorage.setItem(TOKEN_KEY, credential)
-            setIdToken(credential)
-            setUser(dashboard)
+            const result = await signInWithPopup(firebaseAuth, googleProvider)
+            const token = await result.user.getIdToken()
+            setUser(await exchangeGoogleToken(token))
         } finally {
             setLoading(false)
         }
     }, [])
 
     const signOut = useCallback(() => {
-        googleLogout()
-        localStorage.removeItem(TOKEN_KEY)
-        setIdToken(null)
+        const firebaseAuth = getFirebaseAuth()
+        if (firebaseAuth) {
+            void firebaseSignOut(firebaseAuth).catch(() => undefined)
+        }
+        localStorage.removeItem(LEGACY_TOKEN_KEY)
+        void logoutSession().catch(() => undefined)
         setUser(null)
     }, [])
 
     const value = useMemo<AuthContextValue>(
         () => ({
             user,
-            idToken,
             loading,
-            configured: Boolean(CLIENT_ID),
-            signInWithCredential,
+            configured: firebaseConfigured,
+            signInWithGoogle,
             signOut,
             refresh,
         }),
-        [user, idToken, loading, signInWithCredential, signOut, refresh]
+        [user, loading, signInWithGoogle, signOut, refresh]
     )
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-    if (!CLIENT_ID) {
-        return (
-            <AuthContext.Provider
-                value={{
-                    user: null,
-                    idToken: null,
-                    loading: false,
-                    configured: false,
-                    signInWithCredential: async () => undefined,
-                    signOut: () => undefined,
-                    refresh: async () => undefined,
-                }}
-            >
-                {children}
-            </AuthContext.Provider>
-        )
-    }
-
-    return (
-        <GoogleOAuthProvider clientId={CLIENT_ID}>
-            <AuthInner>{children}</AuthInner>
-        </GoogleOAuthProvider>
-    )
+    return <AuthInner>{children}</AuthInner>
 }
 
 export function useAuth() {

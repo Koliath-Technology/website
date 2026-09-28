@@ -6,8 +6,13 @@ import { Button } from "./ui/button"
 import { Input } from "./ui/input"
 import { Label } from "./ui/label"
 
-const CONTACT_EMAIL =
-    (import.meta.env.VITE_CONTACT_EMAIL as string | undefined)?.trim() || "hello@koliath.in"
+function publicInbox(value: string | undefined): string {
+    const fallback = "hello@koliath.in"
+    const email = value?.trim() || fallback
+    return /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(email) ? email : fallback
+}
+
+const CONTACT_EMAIL = publicInbox(import.meta.env.VITE_CONTACT_EMAIL as string | undefined)
 
 const TOPICS = [
     { id: "general", label: "General" },

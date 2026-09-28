@@ -4,10 +4,18 @@
  * Production builds drop any link that still points at localhost.
  */
 function publicDownloadUrl(value: string | undefined): string | undefined {
-    const url = value?.trim()
-    if (!url) return undefined
-    if (import.meta.env.PROD && /localhost|127\.0\.0\.1/i.test(url)) return undefined
-    return url
+    const raw = value?.trim()
+    if (!raw) return undefined
+    try {
+        const url = new URL(raw)
+        const https = url.protocol === "https:"
+        const localHttp = url.protocol === "http:" && !import.meta.env.PROD
+        if (!https && !localHttp) return undefined
+        if (import.meta.env.PROD && /localhost|127\.0\.0\.1/i.test(url.hostname)) return undefined
+        return url.toString()
+    } catch {
+        return undefined
+    }
 }
 
 export const downloadUrls: Record<string, string | undefined> = {
@@ -19,12 +27,12 @@ export const downloadUrls: Record<string, string | undefined> = {
 }
 
 export function withReferral(url: string, refCode: string | null): string {
-    if (!refCode) return url
     try {
         const next = new URL(url, window.location.origin)
-        if (!next.searchParams.get("ref")) next.searchParams.set("ref", refCode)
+        if (next.protocol !== "https:" && next.protocol !== "http:") return ""
+        if (refCode && !next.searchParams.get("ref")) next.searchParams.set("ref", refCode)
         return next.toString()
     } catch {
-        return url
+        return ""
     }
 }

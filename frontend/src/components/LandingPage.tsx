@@ -63,6 +63,9 @@ export default function Home() {
                             installs.
                         </p>
                         <div className="flex flex-wrap gap-3 text-sm">
+                            <Link to="/login" className="underline">
+                                Login
+                            </Link>
                             <Link to="/products" className="underline">
                                 Products
                             </Link>
