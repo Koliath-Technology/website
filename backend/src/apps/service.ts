@@ -6,6 +6,7 @@ export interface RegisteredApp {
     appId: string
     slug: string | null
     name: string
+    description: string | null
     packageId: string
     platform: "android" | "ios"
     developerName: string
@@ -39,6 +40,7 @@ function mapApp(row: {
     app_id: string
     slug: string | null
     name: string
+    description: string | null
     package_id: string
     platform: "android" | "ios"
     developer_name: string
@@ -54,6 +56,7 @@ function mapApp(row: {
         appId: row.app_id,
         slug: row.slug,
         name: row.name,
+        description: row.description,
         packageId: row.package_id,
         platform: row.platform,
         developerName: row.developer_name,
@@ -66,7 +69,7 @@ function mapApp(row: {
     }
 }
 
-const APP_COLUMNS = `id, app_id, slug, name, package_id, platform, developer_name, company,
+const APP_COLUMNS = `id, app_id, slug, name, description, package_id, platform, developer_name, company,
     status, points_awarded, verification_config, owner_user_id, created_at`
 
 export async function registerDeveloperApp(input: {
@@ -76,6 +79,7 @@ export async function registerDeveloperApp(input: {
     platform: "android" | "ios"
     developerName: string
     company?: string
+    description?: string
     slug?: string
     /** Only token lifetime is developer-set. Points and attestation are admin-only. */
     verificationConfig?: { tokenTtlSeconds?: number }
@@ -88,14 +92,15 @@ export async function registerDeveloperApp(input: {
     try {
         const result = await dbPool.query(
             `INSERT INTO apps (
-                app_id, slug, name, package_id, platform, developer_name, company,
+                app_id, slug, name, description, package_id, platform, developer_name, company,
                 status, points_awarded, verification_config, owner_user_id
-             ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', 0, $8::jsonb, $9)
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending', 0, $9::jsonb, $10)
              RETURNING ${APP_COLUMNS}`,
             [
                 appId,
                 input.slug ?? null,
                 input.name,
+                input.description ?? null,
                 input.packageId,
                 input.platform,
                 input.developerName,

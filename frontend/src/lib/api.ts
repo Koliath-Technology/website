@@ -1,3 +1,5 @@
+import { csrfCookieName } from "./adminHost"
+
 /**
  * Same-origin `/api` when `VITE_API_BASE` is empty (Vite proxy in dev, reverse
  * proxy in production). A production build never calls localhost — that value
@@ -16,8 +18,6 @@ function resolveApiRoot(): string {
 
 export const API_ROOT = resolveApiRoot()
 
-const CSRF_COOKIE = "koliath_csrf"
-
 export class ApiError extends Error {
     status: number
 
@@ -30,9 +30,10 @@ export class ApiError extends Error {
 
 function readCsrfCookie(): string | null {
     if (typeof document === "undefined") return null
+    const name = csrfCookieName()
     for (const part of document.cookie.split("; ")) {
-        if (part.startsWith(`${CSRF_COOKIE}=`)) {
-            return decodeURIComponent(part.slice(CSRF_COOKIE.length + 1))
+        if (part.startsWith(`${name}=`)) {
+            return decodeURIComponent(part.slice(name.length + 1))
         }
     }
     return null
@@ -105,6 +106,33 @@ export interface DashboardUser {
         sourceApp?: string
         confirmedAt?: string | null
     }>
+    validReferrals?: number
+    rewardProgram?: RewardProgram
+    giftCard?: GiftCardStatus
+}
+
+export interface RewardProgram {
+    firstLoginRewardCoins: number
+    appDownloadRewardCoins: number
+    referralRewardCoins: number
+    giftCardCostCoins: number
+    giftCardValueInr: number
+    referralsRequiredForRedemption: number
+    verificationTokenExpiryMinutes: number
+    effectiveVerificationTokenSeconds?: number
+    installPayout?: string
+    installLedgerEvent?: string
+}
+
+export interface GiftCardStatus {
+    eligible: boolean
+    costCoins: number
+    valueInr: number
+    referralsRequired: number
+    pointsAvailable: number
+    validReferrals: number
+    coinsShort: number
+    referralsShort: number
 }
 
 export interface Reward {
@@ -115,12 +143,24 @@ export interface Reward {
     required_referrals?: number
 }
 
-export async function exchangeGoogleToken(idToken: string): Promise<DashboardUser> {
+export async function exchangeGoogleToken(
+    idToken: string,
+    attribution?: { referralCode?: string; deviceKey?: string }
+): Promise<DashboardUser> {
+    const body: { idToken: string; referralCode?: string; deviceKey?: string } = { idToken }
+    const referralCode = attribution?.referralCode?.trim()
+    const deviceKey = attribution?.deviceKey?.trim()
+    if (referralCode && referralCode.length >= 4 && referralCode.length <= 20) {
+        body.referralCode = referralCode
+    }
+    if (deviceKey && deviceKey.length >= 5 && deviceKey.length <= 160) {
+        body.deviceKey = deviceKey
+    }
     const response = await fetch(`${API_ROOT}/api/auth/firebase`, {
         method: "POST",
         credentials: "include",
         headers: authHeaders(false),
-        body: JSON.stringify({ idToken }),
+        body: JSON.stringify(body),
     })
     const data = await parseJson<{ success: boolean; user: DashboardUser }>(response)
     return data.user
@@ -141,6 +181,21 @@ export async function logoutSession(): Promise<void> {
         headers: authHeaders(true),
     })
     await parseJson<{ success: boolean }>(response)
+}
+
+export async function fetchRewardProgram(): Promise<RewardProgram> {
+    const response = await fetch(`${API_ROOT}/api/rewards/program`)
+    return parseJson<RewardProgram>(response)
+}
+
+export async function redeemGiftCard(idempotencyKey: string) {
+    const response = await fetch(`${API_ROOT}/api/rewards/gift-card`, {
+        method: "POST",
+        credentials: "include",
+        headers: authHeaders(true),
+        body: JSON.stringify({ idempotencyKey }),
+    })
+    return parseJson<{ success: boolean; alreadyRedeemed: boolean; points: number; valueInr: number }>(response)
 }
 
 export async function fetchReferralRules(): Promise<ReferralRule[]> {

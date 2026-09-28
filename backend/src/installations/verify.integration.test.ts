@@ -32,6 +32,8 @@ async function reset() {
             app_credentials,
             apps,
             reward_redemptions,
+            signup_referrals,
+            browser_devices,
             referral_tracking_events,
             referral_events,
             referral_balances,

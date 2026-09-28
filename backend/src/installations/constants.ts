@@ -10,6 +10,7 @@ export const INSTALL_STATUS = {
 
 export type InstallStatus = (typeof INSTALL_STATUS)[keyof typeof INSTALL_STATUS]
 
+/** Ledger event for a verified install. Public program name: APP_INSTALL. */
 export const REWARD_EVENT = "install_reward"
 
 export const RISK_STATUS = {

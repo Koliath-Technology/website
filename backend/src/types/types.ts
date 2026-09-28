@@ -65,6 +65,24 @@ export const referralTrackingSchema = z.object({
 
 export const googleSessionSchema = z.object({
     idToken: z.string().min(20),
+    referralCode: z
+        .string()
+        .trim()
+        .min(4)
+        .max(20)
+        .transform((c) => c.toUpperCase())
+        .optional(),
+    deviceKey: z.string().trim().min(5).max(160).optional(),
+})
+
+export const giftCardRedeemSchema = z.object({
+    idempotencyKey: z
+        .string()
+        .trim()
+        .min(8)
+        .max(80)
+        .regex(/^[A-Za-z0-9:_-]+$/),
+    denominationInr: z.number().int().positive().optional(),
 })
 
 export const linkAppAccountSchema = z.object({

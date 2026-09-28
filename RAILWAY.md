@@ -32,11 +32,21 @@ Set these on the Railway service before the first deploy. Railway exposes them t
 | `VITE_FIREBASE_MESSAGING_SENDER_ID` | Optional public web field. Build time. |
 | `VITE_FIREBASE_STORAGE_BUCKET` | Optional public web field. Build time. |
 | `APP_WEBHOOK_SECRET` | A long random string you generate and store in Railway. Not in git. |
-| `CORS_ORIGINS` | `https://koliath.in,https://www.koliath.in` |
+| `CORS_ORIGINS` | `https://koliath.in,https://www.koliath.in`. Public APIs only. Do not rely on this list for the admin console. |
+| `ADMIN_ORIGIN` | `https://admin.koliath.in`. Canonical admin origin. `https://koliath.in` and `https://www.koliath.in` are ignored if set here. |
+| `ADMIN_CORS_ORIGINS` | Optional. Defaults to `ADMIN_ORIGIN`, plus localhost origins when `NODE_ENV` is not production. Public marketing origins are stripped even if you list them. |
+| `ADMIN_HOSTS` | Optional Host allowlist for admin APIs. Leave unset. Production then accepts only `admin.koliath.in`. `koliath.in`, `www.koliath.in`, and localhost names are stripped in production. |
 | `VITE_API_BASE` | Leave unset. The browser calls same-origin `/api`. |
 | `VITE_CONTACT_EMAIL` | Optional. Defaults to `hello@koliath.in`. |
-| `ADMIN_GOOGLE_SUBS` | Optional comma-separated Google provider subjects (`global_users.google_sub`) or Firebase Auth uids (Console "User UID") for `/admin` and `/api/admin/verification`. Empty denies everyone. Not a `VITE_` variable. |
-| `INSTALL_TOKEN_TTL_SECONDS` | Optional. Default 1800. Lifetime of a download verification token. |
+| `ADMIN_GOOGLE_SUBS` | Comma-separated Google provider subjects (`global_users.google_sub`) or Firebase Auth uids (Console "User UID") for the admin API. Empty denies everyone. Not a `VITE_` variable. |
+| `INSTALL_TOKEN_TTL_SECONDS` | Optional override for the download verification token, in seconds. When unset, `VERIFICATION_TOKEN_EXPIRY_MINUTES` is used (default 1440). Clamped to 60–86400. |
+| `FIRST_LOGIN_REWARD_COINS` | Coins on the first Google account activation. Default 10. |
+| `APP_DOWNLOAD_REWARD_COINS` | Published download reward. Default 25. The ledger pays each app's `points_awarded`. |
+| `REFERRAL_REWARD_COINS` | Coins for one qualifying signup referral. Default 20. |
+| `GIFT_CARD_COST_COINS` | Coins to redeem the gift card. Default 200. |
+| `GIFT_CARD_VALUE_INR` | Gift card face value. Default 100. |
+| `REFERRALS_REQUIRED_FOR_REDEMPTION` | Valid signup referrals required. Default 3. |
+| `VERIFICATION_TOKEN_EXPIRY_MINUTES` | Token life when `INSTALL_TOKEN_TTL_SECONDS` is unset. Default 1440. |
 | `INSTALL_IP_HASH_SALT` | Set a long random string in production. Used only to hash IPs for install velocity checks. Not a `VITE_` variable. |
 | `INSTALL_REQUIRE_ATTESTATION` | Optional. `true` requires attestation on every verify. The v1 stubs fail closed, so leave unset until a real Play Integrity or App Attest verifier is configured. |
 
@@ -46,22 +56,25 @@ Install verification SQL in `backend/migrations/` is applied once on boot and re
 
 Copy names from [`backend/.env.example`](backend/.env.example) and [`frontend/.env.example`](frontend/.env.example). Those files contain no live credentials.
 
-Google Cloud authorized JavaScript origins must include `https://koliath.in` and `https://www.koliath.in`.
+Google Cloud authorized JavaScript origins must include `https://koliath.in`, `https://www.koliath.in`, and `https://admin.koliath.in`. Add `admin.koliath.in` as an authorized domain in Firebase Authentication as well.
 
 ## 3. Custom domain and DNS
 
 Public DNS for koliath.in currently has **A records at `127.0.0.1` on Cloudflare**. That does not point at Railway. Leave those records until the service is healthy, then:
 
-1. In the Railway service, add custom domains `koliath.in` and `www.koliath.in`.
-2. Replace the Cloudflare `127.0.0.1` A records with the target Railway shows (usually a CNAME to `*.up.railway.app`, or the A/AAAA records Railway prints for the apex).
+1. In the Railway service, add custom domains `koliath.in`, `www.koliath.in`, and `admin.koliath.in` on the **same** service. Do not create a second service for the admin console.
+2. Replace the Cloudflare `127.0.0.1` A records with the target Railway shows (usually a CNAME to `*.up.railway.app`, or the A/AAAA records Railway prints for the apex). Point `admin.koliath.in` at that same Railway target (CNAME `admin` to the Railway hostname).
 3. Use Cloudflare SSL mode **Full**. Railway terminates HTTPS on its side.
+
+The admin console is **https://admin.koliath.in/** . `https://koliath.in/admin` returns 404 and does not serve the admin SPA. Admin APIs (`/api/admin/*`, and catalog-app management by a non-owner) reject any Host other than `admin.koliath.in`. Sign-in is still a verified Google Firebase token, and an empty `ADMIN_GOOGLE_SUBS` still denies everyone.
 
 Until DNS changes, the `*.up.railway.app` URL is the way to open the deploy.
 
 ## 4. What “healthy” looks like
 
 - `GET /health` and `GET /api/health` return `{"ok":true,"service":"koliath-rewards"}`.
-- `GET /`, `/earn`, `/contact`, and `/products` return the SPA HTML, including on refresh.
+- `GET /`, `/earn`, `/contact`, and `/products` on `koliath.in` return the SPA HTML, including on refresh.
+- `GET https://admin.koliath.in/` returns the admin console. `GET https://koliath.in/admin` is 404.
 - `POST /api/contact` returns 202.
 - `/login` is in the navbar and the app hub. **Continue with Google** works only after a rebuild that included the public `VITE_FIREBASE_*` web config, and only when the three Admin variables are set at runtime. The browser does not store that ID token in `localStorage`.
 

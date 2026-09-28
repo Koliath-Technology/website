@@ -38,7 +38,7 @@ The body is strict. `pointsAwarded` and `verificationConfig.requireAttestation` 
 
 The secret is returned once. The database stores `sha256(secret)` and the prefix before the dot. Calling the endpoint again revokes the previous secret.
 
-Catalog apps owned by Koliath have no developer owner. Minting their secret requires an account whose Google provider subject or Firebase Auth uid is in `ADMIN_GOOGLE_SUBS`.
+Catalog apps owned by Koliath have no developer owner. Minting their secret requires an account whose Google provider subject or Firebase Auth uid is in `ADMIN_GOOGLE_SUBS`, and the request `Host` must be the admin host (`admin.koliath.in` in production). The marketing host refuses that call.
 
 Send the secret as `Authorization: Bearer <secret>` or `X-Koliath-App-Secret`.
 
@@ -70,7 +70,7 @@ Auth: browser session. Not the app secret.
 
 `pointsAwarded` is always 0. `pointsIfVerified` is informational. The website must not add it to the balance.
 
-Default token life is 30 minutes (`INSTALL_TOKEN_TTL_SECONDS`, or `verificationConfig.tokenTtlSeconds` on the app, clamped to 60–86400).
+Default token life is 24 hours (`VERIFICATION_TOKEN_EXPIRY_MINUTES`, default 1440). `INSTALL_TOKEN_TTL_SECONDS` overrides that when set. `verificationConfig.tokenTtlSeconds` on the app overrides both. Values are clamped to 60–86400 seconds. The app secret stays on your server. See [rewards-program.md](rewards-program.md).
 
 ## Verify
 

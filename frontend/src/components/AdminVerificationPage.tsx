@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { Button } from "./ui/button"
+import { ADMIN_CANONICAL_URL, isDedicatedAdminHost } from "../lib/adminHost"
 import { useAuth } from "../lib/auth"
 import { ApiError } from "../lib/api"
 import {
@@ -78,7 +79,14 @@ export default function AdminVerificationPage() {
             try {
                 if (tab === "overview") {
                     const data = await fetchAdminOverview()
-                    if (!cancelled) setOverview(data)
+                    if (!cancelled) {
+                        setOverview(data)
+                        const coins = (data.program as { appDownloadRewardCoins?: number } | undefined)
+                            ?.appDownloadRewardCoins
+                        if (typeof coins === "number") {
+                            setApprovePoints((current) => (current === "100" ? String(coins) : current))
+                        }
+                    }
                     return
                 }
                 if (tab === "users") {
@@ -145,9 +153,16 @@ export default function AdminVerificationPage() {
                 <h1 className="font-display text-4xl font-semibold mb-3">Install verification</h1>
                 <p className="text-[var(--muted)] mb-6 max-w-3xl">
                     Google accounts listed in ADMIN_GOOGLE_SUBS can review downloads, rewards,
-                    device links, and fraud events. Risk status BLOCKED holds rewards. It does not
-                    delete the login. One weak signal does not block an account by itself.
+                    device links, and fraud events. That list accepts a Firebase Auth uid or a
+                    Google provider subject. An empty list denies everyone. Risk status BLOCKED
+                    holds rewards. It does not delete the login. One weak signal does not block an
+                    account by itself.
                 </p>
+                {!isDedicatedAdminHost() && (
+                    <p className="text-sm text-[var(--muted)] mb-4">
+                        Local development only. Production console: {ADMIN_CANONICAL_URL}
+                    </p>
+                )}
                 {!loading && !user && (
                     <p>
                         <Link to="/login" className="text-[var(--accent)] hover:underline">
@@ -176,9 +191,31 @@ export default function AdminVerificationPage() {
                             ))}
                         </div>
                         {tab === "overview" && overview && (
-                            <pre className="text-xs overflow-x-auto rounded-2xl border border-[var(--line)] bg-white p-4">
-                                {JSON.stringify(overview, null, 2)}
-                            </pre>
+                            <>
+                                {overview.program && typeof overview.program === "object" && (
+                                    <div className="mb-4 rounded-2xl border border-[var(--line)] bg-white p-4 text-sm">
+                                        <p className="font-medium mb-2">Reward program</p>
+                                        <ul className="grid sm:grid-cols-2 gap-1 text-[var(--muted)]">
+                                            {Object.entries(overview.program as Record<string, unknown>).map(
+                                                ([key, value]) => (
+                                                    <li key={key}>
+                                                        <span className="font-mono text-[var(--ink)]">{key}</span>
+                                                        {": "}
+                                                        {String(value)}
+                                                    </li>
+                                                )
+                                            )}
+                                        </ul>
+                                        <p className="mt-2 text-[var(--muted)]">
+                                            Install coins are the per-app amount set below. The download
+                                            number here is the published program default.
+                                        </p>
+                                    </div>
+                                )}
+                                <pre className="text-xs overflow-x-auto rounded-2xl border border-[var(--line)] bg-white p-4">
+                                    {JSON.stringify(overview, null, 2)}
+                                </pre>
+                            </>
                         )}
                         {tab === "installs" && (
                             <label className="block text-sm mb-3">

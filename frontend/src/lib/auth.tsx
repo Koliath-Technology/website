@@ -1,6 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
 import { onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut } from "firebase/auth"
+import { csrfCookieName } from "./adminHost"
 import { exchangeGoogleToken, fetchMe, logoutSession, type DashboardUser } from "./api"
+import { readStoredAttribution } from "../hooks/useReferralTracker"
 import { firebaseConfigured, getFirebaseAuth, googleProvider } from "./firebase"
 
 /** Removed on boot. ID tokens are no longer stored in localStorage by this app. */
@@ -18,7 +20,8 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 function hasSessionCookie(): boolean {
-    return document.cookie.split("; ").some((part) => part.startsWith("koliath_csrf="))
+    const name = csrfCookieName()
+    return document.cookie.split("; ").some((part) => part.startsWith(`${name}=`))
 }
 
 function AuthInner({ children }: { children: React.ReactNode }) {
@@ -30,7 +33,7 @@ function AuthInner({ children }: { children: React.ReactNode }) {
         if (firebaseAuth?.currentUser) {
             try {
                 const token = await firebaseAuth.currentUser.getIdToken()
-                setUser(await exchangeGoogleToken(token))
+                setUser(await exchangeGoogleToken(token, readStoredAttribution()))
                 return
             } catch {
                 setUser(null)
@@ -68,7 +71,7 @@ function AuthInner({ children }: { children: React.ReactNode }) {
             }
             try {
                 const token = await firebaseUser.getIdToken()
-                setUser(await exchangeGoogleToken(token))
+                setUser(await exchangeGoogleToken(token, readStoredAttribution()))
             } catch {
                 setUser(null)
             } finally {
@@ -87,7 +90,7 @@ function AuthInner({ children }: { children: React.ReactNode }) {
         try {
             const result = await signInWithPopup(firebaseAuth, googleProvider)
             const token = await result.user.getIdToken()
-            setUser(await exchangeGoogleToken(token))
+            setUser(await exchangeGoogleToken(token, readStoredAttribution()))
         } finally {
             setLoading(false)
         }

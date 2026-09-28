@@ -47,7 +47,7 @@ Signals include a repeated device/app reward, an `installation_id` already linke
 
 ## Admin
 
-`/api/admin/verification/*` requires a signed-in account whose Google provider subject or Firebase Auth uid is listed in `ADMIN_GOOGLE_SUBS`. An empty list denies everyone. The admin UI is the same check; hiding a link is not the control.
+`/api/admin/verification/*` requires a signed-in account whose Google provider subject or Firebase Auth uid is listed in `ADMIN_GOOGLE_SUBS`. An empty list denies everyone. The route also requires `Host: admin.koliath.in` (localhost only outside production). `https://koliath.in` is not an allowed CORS origin for those responses. The console is `https://admin.koliath.in/`. `https://koliath.in/admin` is a 404, and the admin session cookie is not the marketing `koliath_session` cookie. Hiding a link is not the control.
 
 ## Privacy minimisation
 
