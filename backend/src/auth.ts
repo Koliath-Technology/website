@@ -15,7 +15,10 @@ export const CSRF_COOKIE = "koliath_csrf"
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"])
 
 export interface AuthUser {
+    /** Google provider subject. Stays the `global_users.google_sub` account key. */
     googleSub: string
+    /** Firebase Auth uid (`decoded.uid`). Distinct from `googleSub`. */
+    firebaseUid: string
     email: string
     name: string
     picture?: string
@@ -105,6 +108,10 @@ export async function verifyFirebaseIdToken(idToken: string): Promise<AuthUser> 
     }
 
     const subject = googleSubject(decoded)
+    const firebaseUid = decoded.uid
+    if (!firebaseUid) {
+        throw Object.assign(new Error("Invalid Firebase token"), { status: 401 })
+    }
     if (!subject || !decoded.email || decoded.email_verified === false) {
         throw Object.assign(new Error("Google account not verified"), { status: 401 })
     }
@@ -112,6 +119,7 @@ export async function verifyFirebaseIdToken(idToken: string): Promise<AuthUser> 
     const profile = decoded as DecodedIdToken & { name?: string; picture?: string }
     return {
         googleSub: subject,
+        firebaseUid,
         email: decoded.email.toLowerCase(),
         name: profile.name ?? decoded.email,
         picture: safePictureUrl(profile.picture),
