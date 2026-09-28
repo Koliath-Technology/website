@@ -32,6 +32,7 @@ export default function ContactPage() {
     const [params] = useSearchParams()
     const initialTopic = isTopic(params.get("topic")) ? params.get("topic")! : "general"
     const appHint = params.get("app")?.slice(0, 80) ?? ""
+    const downloadTopic = initialTopic === "download"
 
     const [name, setName] = useState("")
     const [email, setEmail] = useState("")
@@ -100,6 +101,12 @@ export default function ContactPage() {
                         services, careers, and press — or tell us about an app you want hosted
                         so more people can find it and install it.
                     </p>
+                    {downloadTopic && (
+                        <p className="text-sm rounded-2xl border border-[var(--line)] bg-[var(--accent-soft)] px-5 py-3 mb-8 max-w-xl">
+                            Sign in on Earn before a download can be verified. Opening this form
+                            does not award points.
+                        </p>
+                    )}
 
                     <div className="rounded-[1.75rem] border border-[var(--line)] bg-white/80 p-7 mb-6">
                         <h2 className="font-display text-2xl font-semibold mb-2">List or host your app</h2>

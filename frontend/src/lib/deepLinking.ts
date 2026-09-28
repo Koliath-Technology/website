@@ -1,3 +1,5 @@
+import { decorateDownloadUrl } from "./downloads"
+
 // Placeholder for Branch.io Web SDK initialization
 // In a real production scenario, you would install branch-sdk and initialize it with your Branch Key.
 // import branch from 'branch-sdk';
@@ -38,31 +40,46 @@ function safeReferralCode(referralCode?: string | null): string | null {
     return normalized
 }
 
-export const handleAppDownload = async (referralCode?: string | null) => {
+export const handleAppDownload = async (
+    referralCode?: string | null,
+    verification?: { token: string; appId: string }
+) => {
     const code = safeReferralCode(referralCode)
     if (code) {
         try {
             const link = await generateBranchLink(code);
             const target = new URL(link)
             if (target.protocol !== "https:") {
-                fallbackRedirect()
+                fallbackRedirect(code, verification)
                 return
             }
-            window.location.href = target.toString();
+            const decorated = decorateDownloadUrl(target.toString(), {
+                refCode: code,
+                verificationToken: verification?.token,
+                appId: verification?.appId,
+            })
+            window.location.href = decorated || target.toString();
         } catch (e) {
             console.error("Failed to generate branch link", e);
-            fallbackRedirect();
+            fallbackRedirect(code, verification);
         }
     } else {
-        fallbackRedirect();
+        fallbackRedirect(null, verification);
     }
 };
 
-const fallbackRedirect = () => {
+const fallbackRedirect = (
+    referralCode?: string | null,
+    verification?: { token: string; appId: string }
+) => {
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    if (isIOS) {
-        window.location.href = "https://apps.apple.com/app/idYOUR_APP_ID";
-    } else {
-        window.location.href = "https://play.google.com/store/apps/details?id=com.koliath.diabeticbuddy";
-    }
+    const raw = isIOS
+        ? "https://apps.apple.com/app/idYOUR_APP_ID"
+        : "https://play.google.com/store/apps/details?id=com.koliath.diabeticbuddy";
+    const decorated = decorateDownloadUrl(raw, {
+        refCode: referralCode ?? null,
+        verificationToken: verification?.token,
+        appId: verification?.appId,
+    })
+    window.location.href = decorated || raw;
 };

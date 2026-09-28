@@ -35,6 +35,11 @@ Set these on the Railway service before the first deploy. Railway exposes them t
 | `CORS_ORIGINS` | `https://koliath.in,https://www.koliath.in` |
 | `VITE_API_BASE` | Leave unset. The browser calls same-origin `/api`. |
 | `VITE_CONTACT_EMAIL` | Optional. Defaults to `hello@koliath.in`. |
+| `ADMIN_GOOGLE_SUBS` | Optional comma-separated `global_users.google_sub` values for `/admin` and `/api/admin/verification`. Empty denies everyone. Not a `VITE_` variable. |
+| `INSTALL_TOKEN_TTL_SECONDS` | Optional. Default 1800. Lifetime of a download verification token. |
+| `INSTALL_IP_HASH_SALT` | Set a long random string in production. Used only to hash IPs for install velocity checks. Not a `VITE_` variable. |
+
+Install verification tables are created on boot. Download clicks do not award points. Details are in [docs/deploy-install-verification.md](docs/deploy-install-verification.md).
 
 `PORT` is set by Railway. Do not hardcode it.
 

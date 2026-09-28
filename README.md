@@ -93,6 +93,16 @@ Deploy one Railway service. Steps, env vars, and the Cloudflare DNS note are in 
 
 See [SECURITY_AUDIT.md](SECURITY_AUDIT.md) for the review and what was changed.
 
+## Install verification
+
+Download clicks do not award points. A signed-in download mints a one-time token; the app's backend confirms it with `POST /api/v1/installations/verify`. Rewards go through `points_ledger` and also show up on `/api/me`. Google login and the referral qualify webhooks are unchanged.
+
+Configure `ADMIN_GOOGLE_SUBS`, `INSTALL_TOKEN_TTL_SECONDS`, and `INSTALL_IP_HASH_SALT` as described in [docs/deploy-install-verification.md](docs/deploy-install-verification.md). API shape, privacy, and the server-side SDK example are in [docs/install-verification.md](docs/install-verification.md), [docs/developer-api.md](docs/developer-api.md), and [docs/sdk-example.md](docs/sdk-example.md).
+
+```bash
+npm test --prefix backend
+```
+
 ## Linking mobile apps
 
 After Google sign-in on `/login` or `/earn`, apps can call with the user’s **Firebase** ID token (the same Google account, verified by Firebase Admin):

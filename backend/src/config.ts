@@ -10,6 +10,12 @@ function required(name: string, fallback?: string): string {
 
 const isProd = process.env.NODE_ENV === "production"
 
+function clampTokenTtl(value: string | undefined): number {
+    const parsed = Number(value ?? 1800)
+    if (!Number.isFinite(parsed)) return 1800
+    return Math.min(86400, Math.max(60, Math.floor(parsed)))
+}
+
 export const config = {
     port: Number(process.env.PORT ?? 3000),
     isProd,
@@ -33,6 +39,15 @@ export const config = {
      * Set DATABASE_SSL_REJECT_UNAUTHORIZED=true when the certificate is trusted.
      */
     databaseSslRejectUnauthorized: process.env.DATABASE_SSL_REJECT_UNAUTHORIZED === "true",
+    /** Google subjects allowed to open the install verification admin API. Empty denies everyone. */
+    adminGoogleSubs: (process.env.ADMIN_GOOGLE_SUBS ?? "")
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean),
+    /** Lifetime of a download verification token. Clamped to 60–86400 seconds. */
+    installTokenTtlSeconds: clampTokenTtl(process.env.INSTALL_TOKEN_TTL_SECONDS),
+    /** Salt for hashed client IPs used only as a fraud velocity key. */
+    installIpHashSalt: process.env.INSTALL_IP_HASH_SALT || "koliath-dev-ip-salt",
 }
 
 export const POINTS_PER_REFERRAL = 100

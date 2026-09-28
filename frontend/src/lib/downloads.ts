@@ -26,6 +26,30 @@ export const downloadUrls: Record<string, string | undefined> = {
     "diabetic-buddy": publicDownloadUrl(import.meta.env.VITE_DOWNLOAD_DIABETIC_BUDDY),
 }
 
+export function decorateDownloadUrl(
+    url: string,
+    options: { refCode: string | null; verificationToken?: string; appId?: string }
+): string {
+    const withRef = withReferral(url, options.refCode)
+    try {
+        const next = new URL(withRef || url)
+        if (next.protocol !== "https:" && next.protocol !== "http:") return ""
+        if (options.verificationToken && options.appId) {
+            if (next.hostname === "play.google.com") {
+                const current = next.searchParams.get("referrer") ?? ""
+                const piece = `koliath_verification_token=${encodeURIComponent(options.verificationToken)}&koliath_app_id=${encodeURIComponent(options.appId)}`
+                next.searchParams.set("referrer", current ? `${current}&${piece}` : piece)
+            } else {
+                next.searchParams.set("koliath_verification_token", options.verificationToken)
+                next.searchParams.set("koliath_app_id", options.appId)
+            }
+        }
+        return next.toString()
+    } catch {
+        return ""
+    }
+}
+
 export function withReferral(url: string, refCode: string | null): string {
     try {
         const next = new URL(url, window.location.origin)
