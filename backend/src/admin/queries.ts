@@ -1,4 +1,6 @@
+import { config } from "../config"
 import { dbPool } from "../db"
+import { rewardProgram } from "../rewards/program"
 
 function limitOf(value: unknown): number {
     const parsed = typeof value === "string" ? Number.parseInt(value, 10) : 50
@@ -35,6 +37,12 @@ export async function adminOverview() {
         rewardPoints: rewards.rows[0]?.points ?? 0,
         fraudEventsLastDay: fraud.rows[0]?.n ?? 0,
         risk: risk.rows,
+        program: {
+            ...rewardProgram,
+            effectiveVerificationTokenSeconds: config.installTokenTtlSeconds,
+            installPayout: "per_app_points_awarded",
+            installLedgerEvent: "install_reward",
+        },
     }
 }
 
@@ -59,7 +67,7 @@ export async function adminUserAudit(userId: number) {
         [userId]
     )
     if (!user.rows[0]) return null
-    const [devices, installations, verifications, ledger, fraud] = await Promise.all([
+    const [devices, installations, verifications, ledger, fraud, signupReferrals] = await Promise.all([
         dbPool.query(
             `SELECT d.id, d.device_key, d.platform, ud.first_seen_at, ud.last_seen_at
              FROM user_devices ud
@@ -90,7 +98,7 @@ export async function adminUserAudit(userId: number) {
             [userId]
         ),
         dbPool.query(
-            `SELECT id, event_type, points, installation_id, created_at, metadata
+            `SELECT id, event_type, points, reference_id, installation_id, created_at, metadata
              FROM points_ledger
              WHERE user_id = $1
              ORDER BY created_at DESC
@@ -105,6 +113,14 @@ export async function adminUserAudit(userId: number) {
              LIMIT 50`,
             [userId]
         ),
+        dbPool.query(
+            `SELECT id, referrer_user_id, referred_user_id, code, status, reject_reason, device_key, created_at
+             FROM signup_referrals
+             WHERE referrer_user_id = $1 OR referred_user_id = $1
+             ORDER BY created_at DESC
+             LIMIT 50`,
+            [userId]
+        ),
     ])
     return {
         user: user.rows[0],
@@ -113,6 +129,7 @@ export async function adminUserAudit(userId: number) {
         verifications: verifications.rows,
         ledger: ledger.rows,
         fraudEvents: fraud.rows,
+        signupReferrals: signupReferrals.rows,
     }
 }
 
@@ -204,12 +221,12 @@ export async function adminInstallations(status: string | undefined, rawLimit: u
 export async function adminRewards(rawLimit: unknown) {
     const limit = limitOf(rawLimit)
     const result = await dbPool.query(
-        `SELECT l.id, l.points, l.event_type, l.installation_id, l.created_at,
+        `SELECT l.id, l.points, l.event_type, l.reference_id, l.installation_id, l.created_at,
                 u.id AS user_id, u.google_sub, a.app_id, a.name
          FROM points_ledger l
          JOIN global_users u ON u.id = l.user_id
          LEFT JOIN apps a ON a.id = l.app_row_id
-         WHERE l.event_type = 'install_reward'
+         WHERE l.event_type IN ('install_reward', 'FIRST_LOGIN_REWARD', 'REFERRAL_REWARD', 'GIFT_CARD_REDEEM')
          ORDER BY l.created_at DESC
          LIMIT $1`,
         [limit]

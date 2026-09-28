@@ -70,6 +70,7 @@ function MarketingSite() {
                     <Route path="/products" element={<ProductsPage />} />
                     <Route path="/diabetic-app" element={<DiabeticAppPage />} />
                     <Route path="/earn" element={<RewardPage />} />
+                    <Route path="/signup" element={<RedirectPreserve to="/login" />} />
                     <Route path="/login" element={<LoginPage />} />
                     <Route path="/developer" element={<DeveloperPortal />} />
                     <Route

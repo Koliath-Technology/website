@@ -84,6 +84,7 @@ router.post("/apps", registerLimiter, requireAuth, async (req, res) => {
         const app = await registerDeveloperApp({
             ownerUserId: user.id,
             name: body.data.name,
+            description: body.data.description,
             packageId: body.data.packageId,
             platform: body.data.platform,
             developerName: body.data.developerName ?? user.display_name,

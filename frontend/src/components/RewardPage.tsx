@@ -2,7 +2,6 @@ import { useEffect, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { motion, AnimatePresence } from "framer-motion"
 import {
-    Gift,
     Users,
     Award,
     TrendingUp,
@@ -19,10 +18,11 @@ import { GoogleSignIn } from "./GoogleSignIn"
 import { useAuth } from "../lib/auth"
 import {
     fetchReferralRules,
-    fetchRewards,
-    redeemReward,
+    fetchRewardProgram,
+    redeemGiftCard,
+    type GiftCardStatus,
     type ReferralRule,
-    type Reward,
+    type RewardProgram,
 } from "../lib/api"
 import { useReferralTracker } from "../hooks/useReferralTracker"
 import { downloadUrls } from "../lib/downloads"
@@ -36,22 +36,17 @@ const INSTALL_APPS = [
     { slug: "diabetic-buddy", label: "Diabetic Buddy" },
 ]
 
-const PREVIEW_REWARDS: Reward[] = [
-    { id: -1, title: "₹500 Flipkart Voucher", points_cost: 800, category: "Shopping" },
-    { id: -2, title: "$25 Amazon Voucher", points_cost: 1200, category: "Shopping" },
-    { id: -3, title: "Koliath Merchandise", points_cost: 1500, category: "Merchandise" },
-]
-
 export default function RewardPage() {
     const { user, signOut, refresh } = useAuth()
-    const [rewards, setRewards] = useState<Reward[]>([])
     const [rules, setRules] = useState<ReferralRule[]>([])
+    const [program, setProgram] = useState<RewardProgram | null>(null)
+    const [programNote, setProgramNote] = useState<string | null>(null)
     const [loadingRewards, setLoadingRewards] = useState(true)
-    const [redeemingId, setRedeemingId] = useState<number | null>(null)
+    const [redeemingGift, setRedeemingGift] = useState(false)
+    const [giftKey, setGiftKey] = useState<string | null>(null)
     const [redeemError, setRedeemError] = useState<string | null>(null)
     const [redeemSuccess, setRedeemSuccess] = useState<string | null>(null)
     const [copied, setCopied] = useState(false)
-    const [catalogNote, setCatalogNote] = useState<string | null>(null)
     const navigate = useNavigate()
     const { refCode, trackEvent } = useReferralTracker()
     const [downloadNote, setDownloadNote] = useState<string | null>(null)
@@ -71,57 +66,58 @@ export default function RewardPage() {
     }
 
     useEffect(() => {
-        Promise.all([fetchRewards(), fetchReferralRules()])
-            .then(([rewardList, ruleList]) => {
+        Promise.all([fetchReferralRules(), fetchRewardProgram()])
+            .then(([ruleList, programConfig]) => {
                 setRules(ruleList)
-                if (rewardList.length === 0) {
-                    setRewards(PREVIEW_REWARDS)
-                    setCatalogNote(
-                        "The live catalog is empty. These sample gifts show the Earn layout until rewards are seeded."
-                    )
-                } else {
-                    setRewards(rewardList)
-                }
+                setProgram(programConfig)
             })
             .catch(() => {
-                setRewards(PREVIEW_REWARDS)
-                setCatalogNote(
-                    "Showing sample gifts because the API is offline. Start the backend to sign in, confirm points, and redeem."
-                )
+                setProgram(null)
+                setProgramNote("Reward amounts load from the server.")
             })
             .finally(() => setLoadingRewards(false))
     }, [])
 
-    const handleRedeem = async (reward: Reward) => {
-        if (!user) return
-        setRedeemingId(reward.id)
-        setRedeemError(null)
-        setRedeemSuccess(null)
-        try {
-            const result = await redeemReward(reward.id, user.email)
-            setRedeemSuccess(result.message)
-            await refresh()
-        } catch (err: unknown) {
-            setRedeemError(err instanceof Error ? err.message : "Failed to redeem")
-        } finally {
-            setRedeemingId(null)
-        }
-    }
-
     const copyCode = async () => {
         if (!user) return
-        const link = `${window.location.origin}/earn?ref=${user.globalCode}`
+        const link = `${window.location.origin}/signup?ref=${user.globalCode}`
         await navigator.clipboard.writeText(link)
         setCopied(true)
         setTimeout(() => setCopied(false), 2000)
     }
 
+    const gift: GiftCardStatus | null = user?.giftCard ?? null
+    const shownProgram = user?.rewardProgram ?? program
     const progressPct = (() => {
-        if (!user || rewards.length === 0) return 0
-        const targets = [...new Set(rewards.map((r) => r.points_cost))].sort((a, b) => a - b)
-        const next = targets.find((t) => t > user.pointsAvailable) ?? targets[targets.length - 1] ?? 1
-        return Math.min(100, Math.round((user.pointsAvailable / Math.max(next, 1)) * 100))
+        if (!user || !shownProgram) return 0
+        return Math.min(
+            100,
+            Math.round((user.pointsAvailable / Math.max(shownProgram.giftCardCostCoins, 1)) * 100)
+        )
     })()
+
+    const handleGiftRedeem = async () => {
+        if (!user || !gift?.eligible) return
+        const key = giftKey ?? crypto.randomUUID()
+        if (!giftKey) setGiftKey(key)
+        setRedeemingGift(true)
+        setRedeemError(null)
+        setRedeemSuccess(null)
+        try {
+            const result = await redeemGiftCard(key)
+            setRedeemSuccess(
+                result.alreadyRedeemed
+                    ? "That redemption was already submitted."
+                    : `₹${result.valueInr} gift card requested. ${result.points} coins were used.`
+            )
+            setGiftKey(null)
+            await refresh()
+        } catch (err: unknown) {
+            setRedeemError(err instanceof Error ? err.message : "Failed to redeem")
+        } finally {
+            setRedeemingGift(false)
+        }
+    }
 
     return (
         <div className="reward-page min-h-screen text-[var(--ink)] pb-24">
@@ -151,9 +147,9 @@ export default function RewardPage() {
                         transition={{ delay: 0.1 }}
                         className="text-lg text-[var(--muted)] max-w-2xl mx-auto mb-10 leading-relaxed"
                     >
-                        Sign in with Google. Share your code. Earn separately when friends
-                        qualify in Sapient, Adverts, Diabetic Buddy, and more — under clear
-                        per-app rules.
+                        {shownProgram
+                            ? `Sign in with Google for ${shownProgram.firstLoginRewardCoins} coins. A verified app install pays the amount set for that app. A friend who joins with your link adds ${shownProgram.referralRewardCoins} coins after signup checks pass.`
+                            : "Reward amounts load from the server."}
                     </motion.p>
 
                     {refCode && !user && (
@@ -242,8 +238,8 @@ export default function RewardPage() {
                                     },
                                     {
                                         icon: <Users className="w-5 h-5" />,
-                                        label: "Referrals",
-                                        value: user.totalReferrals,
+                                        label: "Valid referrals",
+                                        value: user.validReferrals ?? 0,
                                     },
                                     {
                                         icon: <TrendingUp className="w-5 h-5 text-[var(--accent)]" />,
@@ -275,9 +271,14 @@ export default function RewardPage() {
                             </div>
 
                             <div className="mb-2 flex justify-between text-sm">
-                                <span className="text-[var(--muted)]">Toward next reward</span>
+                                <span className="text-[var(--muted)]">
+                                    Toward ₹{shownProgram?.giftCardValueInr ?? "…"} gift card
+                                    {shownProgram
+                                        ? ` (${shownProgram.giftCardCostCoins} coins and ${shownProgram.referralsRequiredForRedemption} valid referrals)`
+                                        : ""}
+                                </span>
                                 <span className="font-medium text-[var(--accent)]">
-                                    {user.pointsAvailable} pts
+                                    {user.pointsAvailable} coins
                                 </span>
                             </div>
                             <div className="h-2.5 rounded-full bg-[var(--surface)] overflow-hidden mb-8">
@@ -323,8 +324,10 @@ export default function RewardPage() {
                     <p className="text-[var(--muted)] mb-4 max-w-3xl">
                         A download click does not award points. When you are signed in, Koliath mints a
                         short-lived verification token for the app. Points land only after that app
-                        confirms the install with the server. This is a confidence check, not proof
-                        that a person installed the app.
+                        confirms the install with the server. The published download reward is{" "}
+                        {shownProgram ? `${shownProgram.appDownloadRewardCoins} coins` : "loaded from the server"}.
+                        Each app still pays the amount an admin set for it. This is a confidence check,
+                        not proof that a person installed the app.
                     </p>
                     <div className="flex flex-wrap gap-2 mb-4">
                         {INSTALL_APPS.map((app) => (
@@ -356,8 +359,9 @@ export default function RewardPage() {
                             Referral guidelines
                         </h2>
                         <p className="text-[var(--muted)] max-w-2xl mx-auto">
-                            Points are earned per app, only when the referred person meets that
-                            product&apos;s rule — never for a bare install alone.
+                            The signup link pays the program referral amount after Google sign-in.
+                            These per-app rules are a separate qualify check inside each product,
+                            and a bare install does not pay them.
                         </p>
                     </div>
                     <div className="grid md:grid-cols-2 gap-6">
@@ -411,70 +415,58 @@ export default function RewardPage() {
             <section className="px-6 py-12">
                 <div className="max-w-6xl mx-auto">
                     <div className="text-center mb-12">
-                        <h2 className="font-display text-3xl font-semibold mb-3">Gift catalog</h2>
+                        <h2 className="font-display text-3xl font-semibold mb-3">Gift card</h2>
                         <p className="text-[var(--muted)]">
-                            Redeem confirmed points for vouchers and merch
+                            {shownProgram
+                                ? `₹${shownProgram.giftCardValueInr} unlocks at ${shownProgram.giftCardCostCoins} coins and ${shownProgram.referralsRequiredForRedemption} valid referrals.`
+                                : programNote ?? "Reward amounts load from the server."}
                         </p>
-                        {catalogNote && (
-                            <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 max-w-xl mx-auto mt-4">
-                                {catalogNote}
-                            </p>
-                        )}
                     </div>
-                    {loadingRewards ? (
+                    {shownProgram && (
+                        <div className="max-w-xl mx-auto mb-12 rounded-[1.75rem] border border-[var(--line)] bg-white p-7">
+                            <div className="flex items-center gap-2 text-sm text-[var(--muted)] mb-3">
+                                <Coins className="w-4 h-4 text-amber-500" />
+                                {shownProgram.giftCardCostCoins} coins
+                            </div>
+                            <h3 className="text-xl font-semibold mb-2">
+                                ₹{shownProgram.giftCardValueInr} gift card
+                            </h3>
+                            <p className="text-sm text-[var(--muted)] mb-4">
+                                {gift?.eligible
+                                    ? "You can redeem this now."
+                                    : user
+                                      ? [
+                                            (gift?.coinsShort ?? shownProgram.giftCardCostCoins) > 0
+                                                ? `${gift?.coinsShort ?? shownProgram.giftCardCostCoins} more coins`
+                                                : null,
+                                            (gift?.referralsShort ?? shownProgram.referralsRequiredForRedemption) > 0
+                                                ? `${gift?.referralsShort ?? shownProgram.referralsRequiredForRedemption} more valid referrals`
+                                                : null,
+                                        ]
+                                            .filter(Boolean)
+                                            .join(" and ") || "Still locked"
+                                      : "Sign in to see your progress."}
+                            </p>
+                            <Button
+                                disabled={!gift?.eligible || redeemingGift}
+                                onClick={() => void handleGiftRedeem()}
+                                className="w-full rounded-xl h-12"
+                            >
+                                {redeemingGift ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : gift?.eligible ? (
+                                    "Redeem"
+                                ) : user ? (
+                                    "Locked"
+                                ) : (
+                                    "Sign in to redeem"
+                                )}
+                            </Button>
+                        </div>
+                    )}
+                    {loadingRewards && !shownProgram && (
                         <div className="flex justify-center py-16">
                             <Loader2 className="w-8 h-8 animate-spin text-[var(--accent)]" />
-                        </div>
-                    ) : (
-                        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {rewards.map((reward, i) => {
-                                const preview = reward.id < 0
-                                const canRedeem =
-                                    !!user && !preview && user.pointsAvailable >= reward.points_cost
-                                return (
-                                    <motion.div
-                                        key={reward.id}
-                                        initial={{ opacity: 0, y: 16 }}
-                                        whileInView={{ opacity: 1, y: 0 }}
-                                        viewport={{ once: true }}
-                                        transition={{ delay: i * 0.06 }}
-                                        className="rounded-[1.75rem] border border-[var(--line)] bg-white overflow-hidden flex flex-col"
-                                    >
-                                        <div className="h-36 bg-[var(--surface)] flex items-center justify-center relative">
-                                            <span className="absolute top-4 left-4 text-xs px-2.5 py-1 rounded-full bg-white border border-[var(--line)]">
-                                                {reward.category}
-                                            </span>
-                                            <Gift className="w-12 h-12 text-[var(--accent)]/40" />
-                                        </div>
-                                        <div className="p-6 flex-1 flex flex-col">
-                                            <h3 className="text-lg font-semibold mb-4 flex-1">
-                                                {reward.title}
-                                            </h3>
-                                            <div className="flex items-center gap-2 text-sm text-[var(--muted)] mb-4">
-                                                <Coins className="w-4 h-4 text-amber-500" />
-                                                {reward.points_cost} points
-                                            </div>
-                                            <Button
-                                                disabled={!canRedeem || redeemingId === reward.id}
-                                                onClick={() => void handleRedeem(reward)}
-                                                className="w-full rounded-xl h-12"
-                                            >
-                                                {redeemingId === reward.id ? (
-                                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                                ) : canRedeem ? (
-                                                    "Redeem"
-                                                ) : reward.id < 0 ? (
-                                                    "Preview"
-                                                ) : user ? (
-                                                    "Not enough points"
-                                                ) : (
-                                                    "Sign in to redeem"
-                                                )}
-                                            </Button>
-                                        </div>
-                                    </motion.div>
-                                )
-                            })}
                         </div>
                     )}
                 </div>
@@ -494,12 +486,14 @@ export default function RewardPage() {
                             {
                                 step: "02",
                                 title: "Share per app",
-                                text: "Friends use your code when they join Sapient, Adverts, Diabetic Buddy, or other Koliath apps.",
+                                text: "Friends open your signup link and sign in with Google. The referral pays once that signup passes the checks.",
                             },
                             {
                                 step: "03",
-                                title: "Qualify & redeem",
-                                text: "Points unlock only after each app’s rule is met. Redeem here for gift cards.",
+                                title: "Redeem the gift card",
+                                text: shownProgram
+                                    ? `The ₹${shownProgram.giftCardValueInr} card unlocks at ${shownProgram.giftCardCostCoins} coins and ${shownProgram.referralsRequiredForRedemption} valid referrals.`
+                                    : "The gift card unlocks from the coin and referral counts published by the server.",
                             },
                         ].map((item) => (
                             <div

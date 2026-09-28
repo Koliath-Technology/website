@@ -39,7 +39,14 @@ Set these on the Railway service before the first deploy. Railway exposes them t
 | `VITE_API_BASE` | Leave unset. The browser calls same-origin `/api`. |
 | `VITE_CONTACT_EMAIL` | Optional. Defaults to `hello@koliath.in`. |
 | `ADMIN_GOOGLE_SUBS` | Comma-separated Google provider subjects (`global_users.google_sub`) or Firebase Auth uids (Console "User UID") for the admin API. Empty denies everyone. Not a `VITE_` variable. |
-| `INSTALL_TOKEN_TTL_SECONDS` | Optional. Default 1800. Lifetime of a download verification token. |
+| `INSTALL_TOKEN_TTL_SECONDS` | Optional override for the download verification token, in seconds. When unset, `VERIFICATION_TOKEN_EXPIRY_MINUTES` is used (default 1440). Clamped to 60–86400. |
+| `FIRST_LOGIN_REWARD_COINS` | Coins on the first Google account activation. Default 10. |
+| `APP_DOWNLOAD_REWARD_COINS` | Published download reward. Default 25. The ledger pays each app's `points_awarded`. |
+| `REFERRAL_REWARD_COINS` | Coins for one qualifying signup referral. Default 20. |
+| `GIFT_CARD_COST_COINS` | Coins to redeem the gift card. Default 200. |
+| `GIFT_CARD_VALUE_INR` | Gift card face value. Default 100. |
+| `REFERRALS_REQUIRED_FOR_REDEMPTION` | Valid signup referrals required. Default 3. |
+| `VERIFICATION_TOKEN_EXPIRY_MINUTES` | Token life when `INSTALL_TOKEN_TTL_SECONDS` is unset. Default 1440. |
 | `INSTALL_IP_HASH_SALT` | Set a long random string in production. Used only to hash IPs for install velocity checks. Not a `VITE_` variable. |
 | `INSTALL_REQUIRE_ATTESTATION` | Optional. `true` requires attestation on every verify. The v1 stubs fail closed, so leave unset until a real Play Integrity or App Attest verifier is configured. |
 

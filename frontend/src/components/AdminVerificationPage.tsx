@@ -79,7 +79,14 @@ export default function AdminVerificationPage() {
             try {
                 if (tab === "overview") {
                     const data = await fetchAdminOverview()
-                    if (!cancelled) setOverview(data)
+                    if (!cancelled) {
+                        setOverview(data)
+                        const coins = (data.program as { appDownloadRewardCoins?: number } | undefined)
+                            ?.appDownloadRewardCoins
+                        if (typeof coins === "number") {
+                            setApprovePoints((current) => (current === "100" ? String(coins) : current))
+                        }
+                    }
                     return
                 }
                 if (tab === "users") {
@@ -184,9 +191,31 @@ export default function AdminVerificationPage() {
                             ))}
                         </div>
                         {tab === "overview" && overview && (
-                            <pre className="text-xs overflow-x-auto rounded-2xl border border-[var(--line)] bg-white p-4">
-                                {JSON.stringify(overview, null, 2)}
-                            </pre>
+                            <>
+                                {overview.program && typeof overview.program === "object" && (
+                                    <div className="mb-4 rounded-2xl border border-[var(--line)] bg-white p-4 text-sm">
+                                        <p className="font-medium mb-2">Reward program</p>
+                                        <ul className="grid sm:grid-cols-2 gap-1 text-[var(--muted)]">
+                                            {Object.entries(overview.program as Record<string, unknown>).map(
+                                                ([key, value]) => (
+                                                    <li key={key}>
+                                                        <span className="font-mono text-[var(--ink)]">{key}</span>
+                                                        {": "}
+                                                        {String(value)}
+                                                    </li>
+                                                )
+                                            )}
+                                        </ul>
+                                        <p className="mt-2 text-[var(--muted)]">
+                                            Install coins are the per-app amount set below. The download
+                                            number here is the published program default.
+                                        </p>
+                                    </div>
+                                )}
+                                <pre className="text-xs overflow-x-auto rounded-2xl border border-[var(--line)] bg-white p-4">
+                                    {JSON.stringify(overview, null, 2)}
+                                </pre>
+                            </>
                         )}
                         {tab === "installs" && (
                             <label className="block text-sm mb-3">

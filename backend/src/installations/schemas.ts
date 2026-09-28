@@ -64,6 +64,7 @@ export const verifyInstallSchema = z
 export const registerAppSchema = z
     .object({
         name: z.string().trim().min(2).max(120),
+        description: z.string().trim().min(1).max(2000).optional(),
         packageId: z
             .string()
             .trim()

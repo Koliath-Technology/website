@@ -3,6 +3,17 @@ import fpPromise from "@fingerprintjs/fingerprintjs"
 import { API_ROOT } from "../lib/api"
 
 const REFERRAL_KEY = "koliath_ref_code"
+const DEVICE_KEY = "koliath_device_key"
+
+export function readStoredAttribution(): { referralCode?: string; deviceKey?: string } {
+    if (typeof localStorage === "undefined") return {}
+    const referralCode = localStorage.getItem(REFERRAL_KEY) || sharedRefCode || undefined
+    const deviceKey = localStorage.getItem(DEVICE_KEY) || sharedDeviceId || undefined
+    return {
+        referralCode: referralCode || undefined,
+        deviceKey: deviceKey || undefined,
+    }
+}
 
 /** Shared across hook instances so a download click can attribute after App has stored the code. */
 let sharedRefCode: string | null = null
@@ -23,6 +34,7 @@ export function useReferralTracker() {
             const fp = await fpPromise.load()
             const result = await fp.get()
             sharedDeviceId = result.visitorId
+            localStorage.setItem(DEVICE_KEY, result.visitorId)
             if (!cancelled) setDeviceId(result.visitorId)
             return result.visitorId
         }

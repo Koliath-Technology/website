@@ -15,7 +15,7 @@ Railway already runs one Node service. No new service is required. Do not put th
 | `ADMIN_ORIGIN` | Canonical admin origin. Set `https://admin.koliath.in`. Public marketing origins are ignored. |
 | `ADMIN_CORS_ORIGINS` | Optional. Admin API and admin-host CORS allowlist. Defaults to `ADMIN_ORIGIN`. `https://koliath.in` and `https://www.koliath.in` are stripped. |
 | `ADMIN_HOSTS` | Optional. Leave unset so production admin APIs accept only `admin.koliath.in`. |
-| `INSTALL_TOKEN_TTL_SECONDS` | Verification token lifetime. Default 1800. Clamped to 60–86400. |
+| `INSTALL_TOKEN_TTL_SECONDS` | Optional verification token lifetime in seconds. When unset, `VERIFICATION_TOKEN_EXPIRY_MINUTES` (default 1440) is used. Clamped to 60–86400. Per-app `tokenTtlSeconds` still overrides. |
 | `INSTALL_IP_HASH_SALT` | Secret salt for IP velocity hashes. Set a long random value in production. |
 | `INSTALL_REQUIRE_ATTESTATION` | Set to `true` to require Play Integrity / App Attest on every verify. The v1 stubs then fail closed and no install reward is granted. Leave unset for the default, where attestation is optional and client ids are fraud signals only. |
 | `APP_WEBHOOK_SECRET` | Unchanged. Still gates referral qualify/register webhooks, not install verify. |

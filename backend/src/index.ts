@@ -25,6 +25,7 @@ import {
     referralTrackingSchema,
     registerReferralSchema,
     googleSessionSchema,
+    giftCardRedeemSchema,
     linkAppAccountSchema,
     qualifyReferralSchema,
     contactInquirySchema,
@@ -50,6 +51,15 @@ import { installationRouter } from "./installations/routes"
 import { developerRouter } from "./apps/routes"
 import { adminVerificationRouter } from "./admin/routes"
 import { adminRuntime, createHostSecurity } from "./admin/host"
+import { rewardProgram } from "./rewards/program"
+import {
+    RewardDenied,
+    applySignupReferral,
+    awardFirstLoginReward,
+    enrichDashboard,
+    redeemGiftCard,
+    rememberBrowserDevice,
+} from "./rewards/service"
 
 const hostSecurity = createHostSecurity(adminRuntime())
 
@@ -185,6 +195,17 @@ async function submitCareer(req: express.Request, res: express.Response) {
 app.post("/careers", careerLimiter, submitCareer)
 app.post("/api/careers", careerLimiter, submitCareer)
 
+async function presentDashboard(userId: number) {
+    try {
+        await awardFirstLoginReward(userId)
+    } catch (error) {
+        logError("first login reward", error)
+    }
+    const dashboard = await getDashboardForUser(userId)
+    if (!dashboard) return null
+    return enrichDashboard(dashboard)
+}
+
 /** Exchange a Firebase ID token (Google sign-in) for a browser session cookie. */
 async function establishSession(req: express.Request, res: express.Response) {
     const body = googleSessionSchema.safeParse(req.body)
@@ -195,7 +216,23 @@ async function establishSession(req: express.Request, res: express.Response) {
     try {
         const authUser = await verifyFirebaseIdToken(body.data.idToken)
         const user = await upsertGlobalUser(authUser)
-        const dashboard = await getDashboardForUser(user.id)
+        if (!user) {
+            return res.status(500).json({ success: false, message: "Failed to sign in" })
+        }
+        if (user.created && body.data.referralCode) {
+            try {
+                if (body.data.deviceKey) await rememberBrowserDevice(user.id, body.data.deviceKey)
+                await applySignupReferral({
+                    referredUserId: user.id,
+                    code: body.data.referralCode,
+                    deviceKey: body.data.deviceKey,
+                    ip: req.ip,
+                })
+            } catch (error) {
+                logError("signup referral", error)
+            }
+        }
+        const dashboard = await presentDashboard(user.id)
         setSessionCookies(res, body.data.idToken, authUser.expiresAt, req.hostname)
         res.setHeader("Cache-Control", "no-store")
         res.status(200).json({
@@ -230,11 +267,12 @@ app.get("/api/me", requireAuth, async (req, res) => {
         const user = await getGlobalUserByGoogleSub(req.authUser!.googleSub)
         if (!user) {
             const created = await upsertGlobalUser(req.authUser!)
-            const dashboard = await getDashboardForUser(created.id)
-            return res.status(200).json(dashboard)
+            if (!created) {
+                return res.status(500).json({ success: false, message: "Failed to load profile" })
+            }
+            return res.status(200).json(await presentDashboard(created.id))
         }
-        const dashboard = await getDashboardForUser(user.id)
-        res.status(200).json(dashboard)
+        res.status(200).json(await presentDashboard(user.id))
     } catch (e) {
         logError("request failed", e)
         res.status(500).json({ success: false, message: "Failed to load profile" })
@@ -249,13 +287,13 @@ app.post("/api/me/link-app", requireAuth, async (req, res) => {
     try {
         let user = await getGlobalUserByGoogleSub(req.authUser!.googleSub)
         if (!user) user = await upsertGlobalUser(req.authUser!)
-        const dashboard = await linkAppAccount(
+        await linkAppAccount(
             user.id,
             body.data.sourceApp,
             body.data.appUid,
             body.data.referralCode
         )
-        res.status(200).json({ success: true, user: dashboard })
+        res.status(200).json({ success: true, user: await presentDashboard(user.id) })
     } catch (e: unknown) {
         logError("link app failed", e)
         const err = e as { status?: number; message?: string }
@@ -313,6 +351,42 @@ app.get("/api/referrals/stats", requireAuth, async (req, res) => {
     } catch (e) {
         logError("request failed", e)
         res.status(500).json({ msg: "Internal server error" })
+    }
+})
+
+app.get("/api/rewards/program", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store")
+    res.status(200).json({
+        ...rewardProgram,
+        effectiveVerificationTokenSeconds: config.installTokenTtlSeconds,
+        installPayout: "per_app_points_awarded",
+        installLedgerEvent: "install_reward",
+    })
+})
+
+app.post("/api/rewards/gift-card", redeemLimiter, requireAuth, async (req, res) => {
+    const body = giftCardRedeemSchema.safeParse(req.body)
+    if (!body.success) return invalidRequest(res)
+    try {
+        let user = await getGlobalUserByGoogleSub(req.authUser!.googleSub)
+        if (!user) user = await upsertGlobalUser(req.authUser!)
+        if (!user) {
+            return res.status(500).json({ success: false, message: "Failed to redeem" })
+        }
+        const result = await redeemGiftCard({
+            userId: user.id,
+            email: user.email,
+            idempotencyKey: body.data.idempotencyKey,
+            denominationInr: body.data.denominationInr,
+        })
+        res.setHeader("Cache-Control", "no-store")
+        res.status(200).json(result)
+    } catch (error) {
+        if (error instanceof RewardDenied) {
+            return res.status(error.status).json({ success: false, message: error.message })
+        }
+        logError("gift card redeem failed", error)
+        res.status(500).json({ success: false, message: "Failed to redeem" })
     }
 })
 

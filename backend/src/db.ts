@@ -205,7 +205,8 @@ export async function upsertGlobalUser(auth: AuthUser) {
             [auth.name, auth.picture ?? null, auth.googleSub, row.id]
         )
         await claimCodesForUser(row.id, auth.email)
-        return getGlobalUserById(row.id)
+        const current = await getGlobalUserById(row.id)
+        return current ? { ...current, created: false as const } : null
     }
 
     let code = mintGlobalCode()
@@ -219,10 +220,15 @@ export async function upsertGlobalUser(auth: AuthUser) {
             const user = inserted.rows[0]
             await registerReferralCode(user.global_code, "global", user.id, user.email)
             await claimCodesForUser(user.id, user.email)
-            return user
+            return { ...user, created: true as const }
         } catch (e: unknown) {
             const err = e as { code?: string }
             if (err.code === "23505") {
+                const again = await pool.query(
+                    `SELECT * FROM global_users WHERE google_sub = $1 OR email = $2 LIMIT 1`,
+                    [auth.googleSub, auth.email]
+                )
+                if (again.rows[0]) return { ...again.rows[0], created: false as const }
                 code = mintGlobalCode()
                 continue
             }

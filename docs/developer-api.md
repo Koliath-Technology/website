@@ -70,7 +70,7 @@ Auth: browser session. Not the app secret.
 
 `pointsAwarded` is always 0. `pointsIfVerified` is informational. The website must not add it to the balance.
 
-Default token life is 30 minutes (`INSTALL_TOKEN_TTL_SECONDS`, or `verificationConfig.tokenTtlSeconds` on the app, clamped to 60–86400).
+Default token life is 24 hours (`VERIFICATION_TOKEN_EXPIRY_MINUTES`, default 1440). `INSTALL_TOKEN_TTL_SECONDS` overrides that when set. `verificationConfig.tokenTtlSeconds` on the app overrides both. Values are clamped to 60–86400 seconds. The app secret stays on your server. See [rewards-program.md](rewards-program.md).
 
 ## Verify
 
