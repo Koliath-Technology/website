@@ -2,7 +2,13 @@
 
 ## What this does not prove
 
-A granted reward means the presented token was unused, unexpired, bound to that user and app, and the fraud rules allowed the credit. It does not prove a human installed the app, that the device is genuine, or that Play Integrity / App Attest succeeded. Those providers are stubs in v1.
+A granted reward means the presented token was unused, unexpired, bound to that user and app, and the fraud rules allowed the credit. It does not prove a human installed the app, that the device is genuine, or that Play Integrity / App Attest succeeded.
+
+`installation_id` and `device_key` are spoofable. Treat repeats and multi-account links as fraud signals only. They are not device proof.
+
+Play Integrity and App Attest are stubs that always return false. v1 leaves attestation optional. Set `INSTALL_REQUIRE_ATTESTATION=true` or the per-app admin flag `requireAttestation` to require it. Required attestation with a missing token, or with a token the stub rejects, denies the reward (`attestation_required`) and does not write the ledger. Do not describe a skipped check as a passed integrity verdict.
+
+Developer registration cannot choose `pointsAwarded` or `requireAttestation`. New apps are `pending` with zero points until an admin in `ADMIN_GOOGLE_SUBS` approves them. That closes the path where any Google user registers an app and pays themselves.
 
 ## Secrets
 

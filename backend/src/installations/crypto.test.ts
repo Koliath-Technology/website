@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { hashesEqual, mintAppSecret, mintVerificationToken, secretPrefix, sha256Hex, tokenPrefix } from "./crypto"
-import { verifyInstallSchema } from "./schemas"
+import { registerAppSchema, verifyInstallSchema } from "./schemas"
 import { inspectAttestation } from "./attestation"
 
 test("verification tokens are hashed and only the prefix is recoverable", () => {
@@ -56,4 +56,35 @@ test("attestation is skipped unless a token is sent, and a token is not accepted
     )
     assert.equal(present.status, "not_configured")
     assert.equal(present.okForReward, true)
+
+    const requiredPresent = await inspectAttestation(
+        { playIntegrityToken: "play-integrity-token-value" },
+        { requireAttestation: true }
+    )
+    assert.equal(requiredPresent.status, "not_configured")
+    assert.equal(requiredPresent.okForReward, false)
+})
+
+test("developer registration cannot set points or require attestation", () => {
+    const base = {
+        name: "Example",
+        packageId: "in.example.app",
+        platform: "android" as const,
+    }
+    assert.equal(registerAppSchema.safeParse(base).success, true)
+    assert.equal(registerAppSchema.safeParse({ ...base, pointsAwarded: 500 }).success, false)
+    assert.equal(
+        registerAppSchema.safeParse({
+            ...base,
+            verificationConfig: { requireAttestation: false },
+        }).success,
+        false
+    )
+    assert.equal(
+        registerAppSchema.safeParse({
+            ...base,
+            verificationConfig: { tokenTtlSeconds: 120 },
+        }).success,
+        true
+    )
 })

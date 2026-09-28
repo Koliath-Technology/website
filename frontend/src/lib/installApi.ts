@@ -105,7 +105,6 @@ export function registerDeveloperApp(body: {
     packageId: string
     platform: "android" | "ios"
     company?: string
-    pointsAwarded?: number
 }) {
     return sendJson<{ app: DeveloperApp; message: string }>("/api/developer/apps", "POST", body)
 }
@@ -151,6 +150,21 @@ export function fetchAdminRewards() {
 
 export function fetchAdminApps() {
     return sendJson<{ apps: Array<Record<string, unknown>> }>("/api/admin/verification/apps", "GET")
+}
+
+export function updateAdminApp(
+    appId: string,
+    body: {
+        status?: "pending" | "active" | "suspended"
+        pointsAwarded?: number
+        requireAttestation?: boolean
+    }
+) {
+    return sendJson<{ app: Record<string, unknown> }>(
+        `/api/admin/verification/apps/${encodeURIComponent(appId)}`,
+        "POST",
+        body
+    )
 }
 
 export function updateAdminRisk(

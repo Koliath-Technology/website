@@ -2,9 +2,11 @@
  * Platform attestation hooks.
  *
  * v1 does not call Google Play Integrity or Apple App Attest / DeviceCheck.
- * A later release can replace `verifyWithProvider` without changing the
- * install reward transaction. Skipped or unverified attestation is not proof
- * that a human installed the app.
+ * The default verifiers always return false. When attestation is not required,
+ * a skipped or stubbed check is only a fraud signal and is not proof of a
+ * genuine device. When attestation is required (per app, or
+ * INSTALL_REQUIRE_ATTESTATION=true), a missing or unaccepted token fails
+ * closed and the reward is denied.
  */
 
 export interface AttestationInput {
@@ -59,7 +61,9 @@ export async function inspectAttestation(
             status: "skipped",
             provider: null,
             okForReward: !options.requireAttestation,
-            note: "No attestation token was sent. v1 does not require Play Integrity or App Attest.",
+            note: options.requireAttestation
+                ? "No attestation token was sent. Attestation is required, so the reward is denied."
+                : "No attestation token was sent. Attestation is optional in v1 and is not proof of install.",
         }
     }
 
@@ -85,6 +89,8 @@ export async function inspectAttestation(
         status: "not_configured",
         provider,
         okForReward: !options.requireAttestation,
-        note: "An attestation token was present, but no live verifier is configured.",
+        note: options.requireAttestation
+            ? "Attestation was required, but the v1 stub verifier does not accept tokens. The reward is denied."
+            : "An attestation token was present, but no live verifier is configured. It is not treated as proof.",
     }
 }

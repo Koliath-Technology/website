@@ -19,4 +19,4 @@ On Android, read `koliath_verification_token` and `koliath_app_id` from the Play
 
 A `granted` response is the only time points move, and they move on Koliath's server. Treat `already_granted` as success with no new points. Do not retry a `granted` or `already_granted` token. Refreshing the token requires the user to start a new signed-in download, which still will not pay twice.
 
-Play Integrity (`attestation.play_integrity_token`) and App Attest (`attestation.app_attest_assertion`) can be forwarded later. v1 records that no verifier is configured and does not require them.
+`installation_id` and `device_key` are not proof of a device. Play Integrity (`attestation.play_integrity_token`) and App Attest (`attestation.app_attest_assertion`) can be forwarded, but v1's verifier is a stub and does not accept them. If the app has `requireAttestation` or the server has `INSTALL_REQUIRE_ATTESTATION=true`, verify fails closed until a real verifier is configured. Otherwise the fields are optional and a reward still does not prove a human install.

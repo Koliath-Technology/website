@@ -48,6 +48,11 @@ export const config = {
     installTokenTtlSeconds: clampTokenTtl(process.env.INSTALL_TOKEN_TTL_SECONDS),
     /** Salt for hashed client IPs used only as a fraud velocity key. */
     installIpHashSalt: process.env.INSTALL_IP_HASH_SALT || "koliath-dev-ip-salt",
+    /**
+     * Fleet-wide override. When true, every verify requires attestation and
+     * the v1 stubs fail closed. Per-app false does not turn this off.
+     */
+    installRequireAttestation: process.env.INSTALL_REQUIRE_ATTESTATION === "true",
 }
 
 export const POINTS_PER_REFERRAL = 100

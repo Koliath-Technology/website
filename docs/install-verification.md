@@ -49,11 +49,24 @@ Collected only to relate a user, an app install, and a fraud signal:
 - SHA-256 of the client IP with `INSTALL_IP_HASH_SALT`, and SHA-256 of the user agent
 - the existing Koliath user id from the Google session that minted the token
 
-Not collected: IMEI, MAC address, serial number, or advertising id. Requests that put those values in `installation_id` or `device_key` are rejected. Attestation tokens, if a client sends them, are not stored; v1 only records that they were skipped or not configured.
+Not collected: IMEI, MAC address, serial number, or advertising id. Requests that put those values in `installation_id` or `device_key` are rejected. Attestation tokens, if a client sends them, are not stored; v1 only records that they were skipped or not accepted by the stub.
 
 The older referral click tracker still stores a browser visitor id for referral attribution. That value is not an install-reward key and is not written to `devices`.
 
-Play Integrity and Apple App Attest / DeviceCheck have a stub in `backend/src/installations/attestation.ts`. v1 does not call them and does not require them.
+## v1 product scope for attestation
+
+`installation_id` and `device_key` are chosen by the client. Anyone can send a new value. They are fraud signals (repeat device, many accounts), not proof of a genuine device or a human install.
+
+Play Integrity and Apple App Attest / DeviceCheck are stubs in `backend/src/installations/attestation.ts`. The stub never accepts a token. Attestation is optional by default. Two switches turn it on, and both fail closed while the stub is in place:
+
+- `INSTALL_REQUIRE_ATTESTATION=true` requires it for every app. A per-app `false` does not override this.
+- An admin sets `requireAttestation: true` on one app via `POST /api/admin/verification/apps/:appId`. Developers cannot set this field.
+
+When required and the token is missing or the stub rejects it, verify returns `reason: attestation_required`, writes a fraud event, and does not insert `points_ledger`. Turning the flag on stops rewards for that app until a real verifier replaces the stub.
+
+## Who can award points
+
+Self-serve registration creates `status = pending` and `points_awarded = 0`. Pending apps cannot start a paying download, and their API secret is rejected as `app_inactive`. Only an `ADMIN_GOOGLE_SUBS` admin can set `active` and a positive point value. Catalog apps (Sapient, Adverts, and the other first-party slugs) are seeded `active` with a preset value; their secrets are still admin-only because they have no owner.
 
 ## Fraud
 

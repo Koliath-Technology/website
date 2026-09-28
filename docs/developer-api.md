@@ -13,12 +13,11 @@ The app secret and the webhook secret are different. Neither belongs in frontend
   "name": "Example",
   "packageId": "in.example.app",
   "platform": "android",
-  "company": "Example",
-  "pointsAwarded": 100
+  "company": "Example"
 }
 ```
 
-`pointsAwarded` is capped at 1000 for self-serve registration. Response includes `app.appId` and does not include a secret.
+The body is strict. `pointsAwarded` and `verificationConfig.requireAttestation` are rejected. A new app is inserted as `pending` with `points_awarded = 0`. It cannot mint a paying download token, and its secret cannot call verify, until an allowlisted admin sets `status` to `active` and a positive `pointsAwarded`. Optional `verificationConfig.tokenTtlSeconds` (60–86400) is the only verification setting a developer may send. The response includes `app.appId` and does not include a secret.
 
 `GET /api/developer/apps` lists your apps with pending, verified, rejected, and reward totals.
 
@@ -117,17 +116,17 @@ Rejection:
 { "verified": false, "reward_status": "rejected", "points": 0, "reason": "expired" }
 ```
 
-`reason` is one of `invalid_credentials`, `app_inactive`, `invalid_request`, `invalid_token`, `expired`, `wrong_app`, `replay`, `rejected`, `rate_limited`, `unavailable`. Fraud rule ids are not included.
+`reason` is one of `invalid_credentials`, `app_inactive`, `invalid_request`, `invalid_token`, `expired`, `wrong_app`, `replay`, `rejected`, `attestation_required`, `rewards_disabled`, `rate_limited`, `unavailable`. Other fraud rule ids are not included.
 
 | HTTP | When |
 | --- | --- |
-| 200 | Granted, already granted, or a fraud rejection (`reason` `rejected`) |
+| 200 | Granted, already granted, a fraud rejection (`reason` `rejected`), or missing required attestation (`reason` `attestation_required`) |
 | 400 | Bad body, bad token, expired, wrong app, replay of a failed token |
 | 401 | Missing, unknown, or revoked secret |
-| 403 | App suspended, or this account cannot start verification |
+| 403 | App is pending or suspended (`app_inactive`), the app is not approved to start a download, the account cannot start verification, or an active app currently awards zero points (`rewards_disabled`, token left unused) |
 | 429 | Route limit or verify-failure velocity |
 
-Attestation fields are accepted and ignored by the live verifiers until Play Integrity or App Attest is configured. `verificationConfig.requireAttestation: true` denies the reward until a verifier exists. Leave it false.
+`installation_id` and `device_key` are app-generated and spoofable. They are fraud signals, not proof that a device or a person is genuine. Play Integrity and App Attest stay stubs in v1: they never accept a token. Attestation is optional unless an admin sets `verification_config.requireAttestation` or the process sets `INSTALL_REQUIRE_ATTESTATION=true`. When either requires it, a missing or stubbed token fails closed with `attestation_required` and no ledger row. Developers cannot set that flag.
 
 ## Rate limits
 

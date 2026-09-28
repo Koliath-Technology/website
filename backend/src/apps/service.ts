@@ -76,17 +76,21 @@ export async function registerDeveloperApp(input: {
     platform: "android" | "ios"
     developerName: string
     company?: string
-    pointsAwarded: number
     slug?: string
-    verificationConfig: Record<string, unknown>
+    /** Only token lifetime is developer-set. Points and attestation are admin-only. */
+    verificationConfig?: { tokenTtlSeconds?: number }
 }): Promise<RegisteredApp> {
     const appId = mintPublicId("app")
+    const verificationConfig =
+        input.verificationConfig?.tokenTtlSeconds != null
+            ? { tokenTtlSeconds: input.verificationConfig.tokenTtlSeconds }
+            : {}
     try {
         const result = await dbPool.query(
             `INSERT INTO apps (
                 app_id, slug, name, package_id, platform, developer_name, company,
                 status, points_awarded, verification_config, owner_user_id
-             ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', $8, $9::jsonb, $10)
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', 0, $8::jsonb, $9)
              RETURNING ${APP_COLUMNS}`,
             [
                 appId,
@@ -96,8 +100,7 @@ export async function registerDeveloperApp(input: {
                 input.platform,
                 input.developerName,
                 input.company ?? null,
-                input.pointsAwarded,
-                JSON.stringify(input.verificationConfig),
+                JSON.stringify(verificationConfig),
                 input.ownerUserId,
             ]
         )

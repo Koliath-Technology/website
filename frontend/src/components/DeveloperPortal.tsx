@@ -19,7 +19,6 @@ export default function DeveloperPortal() {
     const [packageId, setPackageId] = useState("")
     const [platform, setPlatform] = useState<"android" | "ios">("android")
     const [company, setCompany] = useState("")
-    const [points, setPoints] = useState("100")
     const [busy, setBusy] = useState(false)
 
     async function load() {
@@ -45,7 +44,6 @@ export default function DeveloperPortal() {
                 packageId,
                 platform,
                 company: company || undefined,
-                pointsAwarded: Number(points) || 0,
             })
             setName("")
             setPackageId("")
@@ -79,7 +77,8 @@ export default function DeveloperPortal() {
                 <p className="text-[var(--muted)] mb-8 max-w-2xl">
                     Register an app, then generate a secret. The secret is shown once and stored
                     only as a hash. Keep it on your server. Do not put it in the website or in the
-                    mobile app binary. Install points are awarded only by the verify API.
+                    mobile app binary. New apps stay pending with zero points until an admin
+                    approves them. Install points are awarded only by the verify API.
                 </p>
                 {!loading && !user && (
                     <p className="mb-6">
@@ -127,15 +126,10 @@ export default function DeveloperPortal() {
                                 value={company}
                                 onChange={(event) => setCompany(event.target.value)}
                             />
-                            <input
-                                className="rounded-xl border border-[var(--line)] px-3 py-2 w-28"
-                                type="number"
-                                min={0}
-                                max={1000}
-                                value={points}
-                                onChange={(event) => setPoints(event.target.value)}
-                            />
                         </div>
+                        <p className="text-sm text-[var(--muted)]">
+                            Reward points and attestation are set by an admin after approval. This form cannot set them.
+                        </p>
                         <Button type="submit" className="rounded-full w-fit" disabled={busy}>
                             Register app
                         </Button>

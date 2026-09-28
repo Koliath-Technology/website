@@ -89,6 +89,7 @@ function tokenTtlSeconds(verificationConfig: unknown): number {
 }
 
 function requireAttestation(verificationConfig: unknown): boolean {
+    if (config.installRequireAttestation) return true
     if (!verificationConfig || typeof verificationConfig !== "object") return false
     return (verificationConfig as { requireAttestation?: unknown }).requireAttestation === true
 }
@@ -123,13 +124,13 @@ async function recordAttempt(
     )
 }
 
-async function findActiveApp(
+async function findApp(
     input: { slug?: string; appId?: string; platform?: "android" | "ios" }
 ): Promise<AppRow | null> {
     if (input.appId) {
         const result = await dbPool.query(
             `SELECT id, app_id, slug, platform, status, points_awarded, verification_config
-             FROM apps WHERE app_id = $1 AND status = 'active'`,
+             FROM apps WHERE app_id = $1`,
             [input.appId]
         )
         return (result.rows[0] as AppRow | undefined) ?? null
@@ -137,7 +138,7 @@ async function findActiveApp(
     const result = await dbPool.query(
         `SELECT id, app_id, slug, platform, status, points_awarded, verification_config
          FROM apps
-         WHERE slug = $1 AND status = 'active'
+         WHERE slug = $1
          ORDER BY CASE WHEN platform = $2 THEN 0 ELSE 1 END, id ASC
          LIMIT 1`,
         [input.slug, input.platform ?? "android"]
@@ -145,10 +146,17 @@ async function findActiveApp(
     return (result.rows[0] as AppRow | undefined) ?? null
 }
 
+function rewardsEnabled(app: AppRow): boolean {
+    return app.status === "active" && Number(app.points_awarded) > 0
+}
+
 export async function startInstallation(input: StartInput): Promise<StartResult> {
-    const app = await findActiveApp(input)
+    const app = await findApp(input)
     if (!app) {
         throw Object.assign(new Error("Unknown app"), { status: 404 })
+    }
+    if (!rewardsEnabled(app)) {
+        throw Object.assign(new Error("App is not approved for install rewards"), { status: 403 })
     }
 
     const client = await dbPool.connect()
@@ -263,7 +271,7 @@ async function countRecentFailures(ipHash: string): Promise<number> {
         `SELECT COUNT(*)::int AS n
          FROM verification_attempts
          WHERE ip_hash = $1
-           AND outcome NOT IN ('granted', 'already_granted')
+           AND outcome NOT IN ('granted', 'already_granted', 'rewards_disabled')
            AND created_at > NOW() - INTERVAL '1 hour'`,
         [ipHash]
     )
@@ -425,7 +433,7 @@ async function collectSignals(
             `SELECT COUNT(*)::int AS n
              FROM verification_attempts
              WHERE ip_hash = $1
-               AND outcome NOT IN ('granted', 'already_granted')
+               AND outcome NOT IN ('granted', 'already_granted', 'rewards_disabled')
                AND created_at > NOW() - INTERVAL '1 hour'`,
             [input.ipHash]
         )
@@ -763,11 +771,14 @@ export async function verifyInstallation(input: VerifyInput): Promise<VerifyResu
         )
 
         if (!decision.grantReward) {
+            const denying = signals.filter((signal) => signal.effect === "deny_reward")
+            const attestationOnly =
+                denying.length === 1 && denying[0]?.id === "attestation_required"
             await finishRejected(client, {
                 id: verificationId,
                 fromStatus,
                 toStatus: INSTALL_STATUS.SUSPICIOUS,
-                reason: "suspicious",
+                reason: attestationOnly ? "attestation_required" : "suspicious",
                 userId,
                 appRowId: input.appRowId,
                 ipHash,
@@ -775,10 +786,22 @@ export async function verifyInstallation(input: VerifyInput): Promise<VerifyResu
                 outcome: "rejected",
             })
             await client.query("COMMIT")
-            return rejected(200, "rejected")
+            return rejected(200, attestationOnly ? "attestation_required" : "rejected")
         }
 
         const points = Math.max(0, Math.min(10000, Number(appRow.points_awarded) || 0))
+        if (points <= 0) {
+            await recordAttempt(client, {
+                appRowId: input.appRowId,
+                userId,
+                ipHash,
+                tokenPrefix: prefix,
+                outcome: "rewards_disabled",
+            })
+            await client.query("COMMIT")
+            return rejected(403, "rewards_disabled")
+        }
+
         await client.query(
             `UPDATE installation_verifications
              SET status = $2, verified_at = NOW(), consumed_at = NOW()

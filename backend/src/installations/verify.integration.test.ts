@@ -11,10 +11,12 @@ import test from "node:test"
 type DbModule = typeof import("../db")
 type InstallModule = typeof import("./service")
 type AppsModule = typeof import("../apps/service")
+type AdminModule = typeof import("../admin/queries")
 
 let db: DbModule
 let installs: InstallModule
 let apps: AppsModule
+let admin: AdminModule
 
 async function reset() {
     await db.dbPool.query(`
@@ -58,9 +60,9 @@ async function createOwnedApp(ownerId: number, points = 100) {
         packageId: `in.koliath.test.${stamp}`,
         platform: "android",
         developerName: "Test",
-        pointsAwarded: points,
         verificationConfig: {},
     })
+    await admin.adminUpdateApp(app.appId, { status: "active", pointsAwarded: points })
     const credential = await apps.issueAppCredential(app.id)
     return { app, secret: credential.secret, prefix: credential.prefix }
 }
@@ -71,6 +73,7 @@ async function authorizedVerify(input: {
     token: string
     installationId: string
     deviceKey?: string
+    attestation?: { playIntegrityToken?: string }
     ip?: string
     thresholds?: {
         deviceAccountsFlag?: number
@@ -89,6 +92,7 @@ async function authorizedVerify(input: {
         installationId: input.installationId,
         platform: "android",
         deviceKey: input.deviceKey,
+        attestation: input.attestation,
         ip: input.ip ?? "203.0.113.10",
         thresholds: input.thresholds,
     })
@@ -109,6 +113,7 @@ test.before(async () => {
     await db.dbReady
     installs = await import("./service")
     apps = await import("../apps/service")
+    admin = await import("../admin/queries")
     await reset()
 })
 
@@ -496,4 +501,144 @@ test("invalid and revoked credentials are rejected and a malformed body is not r
             server.close((error) => (error ? reject(error) : resolve()))
         })
     }
+})
+
+test("a freshly registered developer app cannot grant install rewards until an admin approves it", async () => {
+    const userId = await createUser("farm")
+    const stamp = `${Date.now()}-${Math.random().toString(16).slice(2)}`
+    const app = await apps.registerDeveloperApp({
+        ownerUserId: userId,
+        name: `Farm ${stamp}`,
+        packageId: `in.koliath.farm.${stamp}`,
+        platform: "android",
+        developerName: "Farmer",
+        verificationConfig: { tokenTtlSeconds: 600 },
+    })
+    assert.equal(app.status, "pending")
+    assert.equal(app.pointsAwarded, 0)
+    const storedConfig = app.verificationConfig as { requireAttestation?: boolean; tokenTtlSeconds?: number }
+    assert.equal(storedConfig.requireAttestation, undefined)
+    assert.equal(storedConfig.tokenTtlSeconds, 600)
+
+    await assert.rejects(
+        () =>
+            installs.startInstallation({
+                userId,
+                appId: app.appId,
+                platform: "android",
+                ip: "203.0.113.40",
+            }),
+        (error: unknown) => {
+            const err = error as { status?: number; message?: string }
+            assert.equal(err.status, 403)
+            assert.match(err.message ?? "", /not approved/)
+            return true
+        }
+    )
+
+    const credential = await apps.issueAppCredential(app.id)
+    const auth = await apps.authenticateAppSecret(credential.secret)
+    assert.equal(auth.ok, false)
+    if (!auth.ok) assert.equal(auth.reason, "app_inactive")
+    assert.equal((await rewardTotal(userId)).count, 0)
+
+    await admin.adminUpdateApp(app.appId, { status: "active", pointsAwarded: 40 })
+    const started = await installs.startInstallation({
+        userId,
+        appId: app.appId,
+        platform: "android",
+        ip: "203.0.113.40",
+    })
+    const verified = await authorizedVerify({
+        secret: credential.secret,
+        appId: app.appId,
+        token: started.verificationToken,
+        installationId: "install-farm-1",
+        ip: "203.0.113.40",
+    })
+    assert.equal(verified.body.reward_status, "granted")
+    assert.equal(verified.body.points, 40)
+    assert.deepEqual(await rewardTotal(userId), { points: 40, count: 1 })
+})
+
+test("zero reward points do not consume the token, and a later admin award still pays it", async () => {
+    const userId = await createUser("zeropts")
+    const { app, secret } = await createOwnedApp(userId, 50)
+    const started = await installs.startInstallation({
+        userId,
+        appId: app.appId,
+        platform: "android",
+        ip: "203.0.113.41",
+    })
+    await admin.adminUpdateApp(app.appId, { pointsAwarded: 0 })
+    const held = await authorizedVerify({
+        secret,
+        appId: app.appId,
+        token: started.verificationToken,
+        installationId: "install-zero-1",
+        ip: "203.0.113.41",
+    })
+    assert.equal(held.httpStatus, 403)
+    assert.equal(held.body.reason, "rewards_disabled")
+    assert.equal(held.body.points, 0)
+    const pending = await db.dbPool.query(
+        `SELECT status, consumed_at FROM installation_verifications WHERE user_id = $1`,
+        [userId]
+    )
+    assert.equal(pending.rows[0].status, "PENDING_VERIFICATION")
+    assert.equal(pending.rows[0].consumed_at, null)
+    assert.equal((await rewardTotal(userId)).count, 0)
+
+    await admin.adminUpdateApp(app.appId, { pointsAwarded: 50 })
+    const granted = await authorizedVerify({
+        secret,
+        appId: app.appId,
+        token: started.verificationToken,
+        installationId: "install-zero-1",
+        ip: "203.0.113.41",
+    })
+    assert.equal(granted.body.reward_status, "granted")
+    assert.equal(granted.body.points, 50)
+    assert.deepEqual(await rewardTotal(userId), { points: 50, count: 1 })
+})
+
+test("required attestation fails closed while the Play Integrity stub is unconfigured", async () => {
+    const userId = await createUser("attest")
+    const { app, secret } = await createOwnedApp(userId, 20)
+    const updated = await admin.adminUpdateApp(app.appId, { requireAttestation: true })
+    assert.equal(updated.verification_config.requireAttestation, true)
+    const started = await installs.startInstallation({
+        userId,
+        appId: app.appId,
+        platform: "android",
+        ip: "203.0.113.42",
+    })
+    const missing = await authorizedVerify({
+        secret,
+        appId: app.appId,
+        token: started.verificationToken,
+        installationId: "install-attest-1",
+        ip: "203.0.113.42",
+    })
+    assert.equal(missing.httpStatus, 200)
+    assert.equal(missing.body.verified, false)
+    assert.equal(missing.body.reason, "attestation_required")
+    assert.equal(missing.body.points, 0)
+
+    const second = await installs.startInstallation({
+        userId,
+        appId: app.appId,
+        platform: "android",
+        ip: "203.0.113.42",
+    })
+    const stubbed = await authorizedVerify({
+        secret,
+        appId: app.appId,
+        token: second.verificationToken,
+        installationId: "install-attest-2",
+        attestation: { playIntegrityToken: "play-integrity-token-value" },
+        ip: "203.0.113.42",
+    })
+    assert.equal(stubbed.body.reason, "attestation_required")
+    assert.equal((await rewardTotal(userId)).count, 0)
 })

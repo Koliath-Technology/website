@@ -71,15 +71,17 @@ router.post("/apps", registerLimiter, requireAuth, async (req, res) => {
             platform: body.data.platform,
             developerName: body.data.developerName ?? user.display_name,
             company: body.data.company,
-            pointsAwarded: body.data.pointsAwarded ?? 100,
             slug: body.data.slug,
-            verificationConfig: body.data.verificationConfig ?? {},
+            verificationConfig: {
+                tokenTtlSeconds: body.data.verificationConfig?.tokenTtlSeconds,
+            },
         })
         res.setHeader("Cache-Control", "no-store")
         res.status(201).json({
             app,
             credential: null,
-            message: "App registered. Generate a credential to receive the secret once.",
+            message:
+                "App registered as pending with zero points. An admin must approve it and set the reward before installs can earn points.",
         })
     } catch (error) {
         const err = error as { status?: number; message?: string }

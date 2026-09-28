@@ -73,7 +73,6 @@ export const registerAppSchema = z
         platform: z.enum(["android", "ios"]),
         company: z.string().trim().min(2).max(255).optional(),
         developerName: z.string().trim().min(2).max(255).optional(),
-        pointsAwarded: z.number().int().min(0).max(1000).optional(),
         slug: z
             .string()
             .trim()
@@ -84,7 +83,6 @@ export const registerAppSchema = z
         verificationConfig: z
             .object({
                 tokenTtlSeconds: z.number().int().min(60).max(86400).optional(),
-                requireAttestation: z.boolean().optional(),
             })
             .strict()
             .optional(),
@@ -103,10 +101,15 @@ export const adminRiskSchema = z
 
 export const adminAppUpdateSchema = z
     .object({
-        status: z.enum(["active", "suspended"]).optional(),
+        status: z.enum(["pending", "active", "suspended"]).optional(),
         pointsAwarded: z.number().int().min(0).max(10000).optional(),
+        requireAttestation: z.boolean().optional(),
     })
     .strict()
-    .refine((value) => value.status !== undefined || value.pointsAwarded !== undefined, {
-        message: "status or pointsAwarded is required",
-    })
+    .refine(
+        (value) =>
+            value.status !== undefined ||
+            value.pointsAwarded !== undefined ||
+            value.requireAttestation !== undefined,
+        { message: "status, pointsAwarded, or requireAttestation is required" }
+    )

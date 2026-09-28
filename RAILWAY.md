@@ -38,8 +38,9 @@ Set these on the Railway service before the first deploy. Railway exposes them t
 | `ADMIN_GOOGLE_SUBS` | Optional comma-separated `global_users.google_sub` values for `/admin` and `/api/admin/verification`. Empty denies everyone. Not a `VITE_` variable. |
 | `INSTALL_TOKEN_TTL_SECONDS` | Optional. Default 1800. Lifetime of a download verification token. |
 | `INSTALL_IP_HASH_SALT` | Set a long random string in production. Used only to hash IPs for install velocity checks. Not a `VITE_` variable. |
+| `INSTALL_REQUIRE_ATTESTATION` | Optional. `true` requires attestation on every verify. The v1 stubs fail closed, so leave unset until a real Play Integrity or App Attest verifier is configured. |
 
-Install verification tables are created on boot. Download clicks do not award points. Details are in [docs/deploy-install-verification.md](docs/deploy-install-verification.md).
+Install verification SQL in `backend/migrations/` is applied once on boot and recorded in `schema_migrations`. Download clicks do not award points. New developer apps stay pending with zero points until an admin approves them. Details are in [docs/deploy-install-verification.md](docs/deploy-install-verification.md).
 
 `PORT` is set by Railway. Do not hardcode it.
 

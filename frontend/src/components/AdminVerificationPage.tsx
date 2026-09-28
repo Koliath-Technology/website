@@ -12,6 +12,7 @@ import {
     fetchAdminOverview,
     fetchAdminRewards,
     fetchAdminUsers,
+    updateAdminApp,
     updateAdminRisk,
 } from "../lib/installApi"
 
@@ -64,6 +65,10 @@ export default function AdminVerificationPage() {
     const [statusFilter, setStatusFilter] = useState("")
     const [riskStatus, setRiskStatus] = useState<"NORMAL" | "REVIEW" | "BLOCKED">("NORMAL")
     const [accountStatus, setAccountStatus] = useState<"active" | "suspended">("active")
+    const [approveId, setApproveId] = useState("")
+    const [approveStatus, setApproveStatus] = useState<"pending" | "active" | "suspended">("active")
+    const [approvePoints, setApprovePoints] = useState("100")
+    const [approveAttestation, setApproveAttestation] = useState(false)
 
     useEffect(() => {
         if (!user) return
@@ -191,6 +196,65 @@ export default function AdminVerificationPage() {
                                     <option value="EXPIRED">Expired</option>
                                 </select>
                             </label>
+                        )}
+                        {tab === "apps" && (
+                            <form
+                                className="mb-4 flex flex-wrap gap-2 items-center"
+                                onSubmit={(event) => {
+                                    event.preventDefault()
+                                    const pointsAwarded = Number(approvePoints)
+                                    if (!approveId.trim() || !Number.isInteger(pointsAwarded)) return
+                                    void updateAdminApp(approveId.trim(), {
+                                        status: approveStatus,
+                                        pointsAwarded,
+                                        requireAttestation: approveAttestation,
+                                    })
+                                        .then(() => fetchAdminApps())
+                                        .then((data) => setRows(data.apps))
+                                        .catch((err: unknown) => {
+                                            setError(err instanceof ApiError ? err.message : "Could not update the app")
+                                        })
+                                }}
+                            >
+                                <input
+                                    className="rounded-lg border border-[var(--line)] px-2 py-1"
+                                    placeholder="app_id"
+                                    value={approveId}
+                                    onChange={(event) => setApproveId(event.target.value)}
+                                    required
+                                />
+                                <select
+                                    className="rounded-lg border border-[var(--line)] px-2 py-1"
+                                    value={approveStatus}
+                                    onChange={(event) =>
+                                        setApproveStatus(event.target.value as "pending" | "active" | "suspended")
+                                    }
+                                >
+                                    <option value="pending">pending</option>
+                                    <option value="active">active</option>
+                                    <option value="suspended">suspended</option>
+                                </select>
+                                <input
+                                    className="rounded-lg border border-[var(--line)] px-2 py-1 w-24"
+                                    type="number"
+                                    min={0}
+                                    max={10000}
+                                    value={approvePoints}
+                                    onChange={(event) => setApprovePoints(event.target.value)}
+                                    aria-label="Points awarded"
+                                />
+                                <label className="text-sm flex items-center gap-1">
+                                    <input
+                                        type="checkbox"
+                                        checked={approveAttestation}
+                                        onChange={(event) => setApproveAttestation(event.target.checked)}
+                                    />
+                                    Require attestation
+                                </label>
+                                <Button type="submit" className="rounded-full">
+                                    Update app
+                                </Button>
+                            </form>
                         )}
                         {tab !== "overview" && <Table rows={rows} />}
                         {tab === "users" && (
