@@ -2,6 +2,7 @@ import { randomBytes } from "crypto"
 import type { Request, Response, NextFunction } from "express"
 import { cert, getApps, initializeApp, type App } from "firebase-admin/app"
 import { getAuth, type DecodedIdToken } from "firebase-admin/auth"
+import { isDedicatedAdminHostname } from "./admin/host"
 import { config } from "./config"
 import { firebaseCredentialStatus, normalizePrivateKey } from "./firebaseCredentials"
 import { logError } from "./redact"
@@ -11,6 +12,51 @@ const MAX_ID_TOKEN_LENGTH = 8192
 
 export const SESSION_COOKIE = "koliath_session"
 export const CSRF_COOKIE = "koliath_csrf"
+export const ADMIN_SESSION_COOKIE = "koliath_admin_session"
+export const ADMIN_CSRF_COOKIE = "koliath_admin_csrf"
+
+export interface SessionCookieScope {
+    session: string
+    csrf: string
+    sameSite: "lax" | "strict"
+}
+
+/**
+ * Marketing cookies stay host-only and Lax. Admin cookies are a different
+ * name, SameSite=Strict, and also host-only (Domain is never set). In
+ * production the admin names use the `__Host-` prefix, which browsers reject
+ * unless the cookie is Secure, Path=/, and has no Domain.
+ */
+export function sessionCookieScopeFor(dedicatedAdminHost: boolean, secure: boolean): SessionCookieScope {
+    if (!dedicatedAdminHost) {
+        return { session: SESSION_COOKIE, csrf: CSRF_COOKIE, sameSite: "lax" }
+    }
+    const prefix = secure ? "__Host-" : ""
+    return {
+        session: `${prefix}${ADMIN_SESSION_COOKIE}`,
+        csrf: `${prefix}${ADMIN_CSRF_COOKIE}`,
+        sameSite: "strict",
+    }
+}
+
+export function sessionCookieScope(hostname: string): SessionCookieScope {
+    return sessionCookieScopeFor(isDedicatedAdminHostname(hostname), config.cookieSecure)
+}
+
+export function sessionCookieAttributes(
+    scope: SessionCookieScope,
+    httpOnly: boolean,
+    secure: boolean,
+    maxAge?: number
+) {
+    return {
+        httpOnly,
+        secure,
+        sameSite: scope.sameSite,
+        path: "/",
+        ...(maxAge !== undefined ? { maxAge } : {}),
+    }
+}
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"])
 
@@ -135,38 +181,30 @@ function extractBearer(req: Request): string | null {
 }
 
 function sessionToken(req: Request): string | null {
-    const value = req.cookies?.[SESSION_COOKIE]
+    const value = req.cookies?.[sessionCookieScope(req.hostname).session]
     return typeof value === "string" && value.length > 0 ? value : null
 }
 
 export function csrfHeaderValid(req: Request): boolean {
     const header = req.get("x-csrf-token") ?? ""
-    const cookie = req.cookies?.[CSRF_COOKIE]
+    const cookie = req.cookies?.[sessionCookieScope(req.hostname).csrf]
     if (typeof cookie !== "string" || cookie.length === 0 || header.length === 0) return false
     return secretsEqual(header, cookie)
 }
 
-function cookieOptions(httpOnly: boolean, maxAge?: number) {
-    return {
-        httpOnly,
-        secure: config.cookieSecure,
-        sameSite: "lax" as const,
-        path: "/",
-        ...(maxAge !== undefined ? { maxAge } : {}),
-    }
-}
-
-/** Browser session: httpOnly Google token plus a readable CSRF cookie. */
-export function setSessionCookies(res: Response, idToken: string, expiresAtSec: number): void {
+/** Browser session: httpOnly Google token plus a readable CSRF cookie. Domain is never set. */
+export function setSessionCookies(res: Response, idToken: string, expiresAtSec: number, hostname = ""): void {
     const maxAge = Math.min(Math.max(expiresAtSec * 1000 - Date.now(), 0), 60 * 60 * 1000)
+    const scope = sessionCookieScope(hostname)
     const csrf = randomBytes(32).toString("hex")
-    res.cookie(SESSION_COOKIE, idToken, cookieOptions(true, maxAge))
-    res.cookie(CSRF_COOKIE, csrf, cookieOptions(false, maxAge))
+    res.cookie(scope.session, idToken, sessionCookieAttributes(scope, true, config.cookieSecure, maxAge))
+    res.cookie(scope.csrf, csrf, sessionCookieAttributes(scope, false, config.cookieSecure, maxAge))
 }
 
-export function clearSessionCookies(res: Response): void {
-    res.clearCookie(SESSION_COOKIE, cookieOptions(true))
-    res.clearCookie(CSRF_COOKIE, cookieOptions(false))
+export function clearSessionCookies(res: Response, hostname = ""): void {
+    const scope = sessionCookieScope(hostname)
+    res.clearCookie(scope.session, sessionCookieAttributes(scope, true, config.cookieSecure))
+    res.clearCookie(scope.csrf, sessionCookieAttributes(scope, false, config.cookieSecure))
 }
 
 export function authFailure(error: unknown): { status: number; message: string } {
@@ -181,8 +219,9 @@ export function authFailure(error: unknown): { status: number; message: string }
 
 /**
  * Firebase ID token via Authorization: Bearer (mobile apps) or the httpOnly
- * session cookie (browser). Cookie-authenticated mutations also need the
- * CSRF header that matches koliath_csrf.
+ * session cookie for this Host. The admin host reads only the admin cookie,
+ * never koliath_session. Cookie-authenticated mutations also need the CSRF
+ * header that matches that host's CSRF cookie.
  */
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
     try {

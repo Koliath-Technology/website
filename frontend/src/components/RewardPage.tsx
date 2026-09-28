@@ -344,9 +344,6 @@ export default function RewardPage() {
                         <Link to="/developer" className="text-[var(--accent)] hover:underline">
                             Developer portal
                         </Link>
-                        <Link to="/admin" className="text-[var(--accent)] hover:underline">
-                            Verification admin
-                        </Link>
                     </div>
                 </div>
             </section>

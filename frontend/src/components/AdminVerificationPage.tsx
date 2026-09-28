@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { Button } from "./ui/button"
+import { ADMIN_CANONICAL_URL, isDedicatedAdminHost } from "../lib/adminHost"
 import { useAuth } from "../lib/auth"
 import { ApiError } from "../lib/api"
 import {
@@ -145,9 +146,16 @@ export default function AdminVerificationPage() {
                 <h1 className="font-display text-4xl font-semibold mb-3">Install verification</h1>
                 <p className="text-[var(--muted)] mb-6 max-w-3xl">
                     Google accounts listed in ADMIN_GOOGLE_SUBS can review downloads, rewards,
-                    device links, and fraud events. Risk status BLOCKED holds rewards. It does not
-                    delete the login. One weak signal does not block an account by itself.
+                    device links, and fraud events. That list accepts a Firebase Auth uid or a
+                    Google provider subject. An empty list denies everyone. Risk status BLOCKED
+                    holds rewards. It does not delete the login. One weak signal does not block an
+                    account by itself.
                 </p>
+                {!isDedicatedAdminHost() && (
+                    <p className="text-sm text-[var(--muted)] mb-4">
+                        Local development only. Production console: {ADMIN_CANONICAL_URL}
+                    </p>
+                )}
                 {!loading && !user && (
                     <p>
                         <Link to="/login" className="text-[var(--accent)] hover:underline">

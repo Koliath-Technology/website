@@ -1,19 +1,17 @@
 import fs from "fs"
 import path from "path"
 import express from "express"
-import cors from "cors"
-import helmet from "helmet"
 import cookieParser from "cookie-parser"
 import rateLimit from "express-rate-limit"
 import { config } from "./config"
 import { logError } from "./redact"
 import {
-    SESSION_COOKIE,
     authFailure,
     clearSessionCookies,
     csrfHeaderValid,
     requireAuth,
     requireAppWebhook,
+    sessionCookieScope,
     setSessionCookies,
     verifyFirebaseIdToken,
 } from "./auth"
@@ -51,54 +49,15 @@ import {
 import { installationRouter } from "./installations/routes"
 import { developerRouter } from "./apps/routes"
 import { adminVerificationRouter } from "./admin/routes"
+import { adminRuntime, createHostSecurity } from "./admin/host"
+
+const hostSecurity = createHostSecurity(adminRuntime())
 
 const app = express()
 
 app.set("trust proxy", 1)
 
-app.use(
-    helmet({
-        contentSecurityPolicy: {
-            useDefaults: true,
-            directives: {
-                defaultSrc: ["'self'"],
-                baseUri: ["'self'"],
-                objectSrc: ["'none'"],
-                frameAncestors: ["'self'"],
-                formAction: ["'self'"],
-                scriptSrc: ["'self'", "https://accounts.google.com", "https://apis.google.com"],
-                styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-                fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
-                imgSrc: [
-                    "'self'",
-                    "data:",
-                    "https://*.googleusercontent.com",
-                    "https://*.gstatic.com",
-                ],
-                connectSrc: [
-                    "'self'",
-                    "https://accounts.google.com",
-                    "https://identitytoolkit.googleapis.com",
-                    "https://securetoken.googleapis.com",
-                    "https://www.googleapis.com",
-                    "https://apis.google.com",
-                ],
-                frameSrc: [
-                    "https://accounts.google.com",
-                    "https://*.firebaseapp.com",
-                    "https://*.web.app",
-                    "https://apis.google.com",
-                ],
-                // TLS is terminated by Railway. Forcing an upgrade here breaks
-                // the documented local HTTP smoke test.
-                upgradeInsecureRequests: null,
-            },
-        },
-        // GIS sign-in opens a Google window. same-origin COOP blocks that popup.
-        crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
-        crossOriginResourcePolicy: { policy: "same-site" },
-    })
-)
+app.use(hostSecurity.securityHeaders)
 
 app.use((_req, res, next) => {
     res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
@@ -107,18 +66,7 @@ app.use((_req, res, next) => {
 
 app.use(cookieParser())
 
-app.use(
-    cors({
-        origin(origin, callback) {
-            if (!origin || config.corsOrigins.includes(origin)) {
-                callback(null, true)
-                return
-            }
-            callback(new Error("Not allowed by CORS"))
-        },
-        credentials: true,
-    })
-)
+app.use(hostSecurity.selectCors)
 
 app.use(express.json({ limit: "32kb" }))
 
@@ -248,7 +196,7 @@ async function establishSession(req: express.Request, res: express.Response) {
         const authUser = await verifyFirebaseIdToken(body.data.idToken)
         const user = await upsertGlobalUser(authUser)
         const dashboard = await getDashboardForUser(user.id)
-        setSessionCookies(res, body.data.idToken, authUser.expiresAt)
+        setSessionCookies(res, body.data.idToken, authUser.expiresAt, req.hostname)
         res.setHeader("Cache-Control", "no-store")
         res.status(200).json({
             success: true,
@@ -265,11 +213,12 @@ app.post("/api/auth/google", authLimiter, establishSession)
 app.post("/api/auth/firebase", authLimiter, establishSession)
 
 app.post("/api/auth/logout", (req, res) => {
-    const hasSession = typeof req.cookies?.[SESSION_COOKIE] === "string" && req.cookies[SESSION_COOKIE]
+    const sessionName = sessionCookieScope(req.hostname).session
+    const hasSession = typeof req.cookies?.[sessionName] === "string" && req.cookies[sessionName]
     if (hasSession && !csrfHeaderValid(req)) {
         return res.status(403).json({ success: false, message: "CSRF check failed" })
     }
-    clearSessionCookies(res)
+    clearSessionCookies(res, req.hostname)
     res.setHeader("Cache-Control", "no-store")
     res.status(200).json({ success: true })
 })
@@ -501,6 +450,7 @@ app.get("/api/referrals/validate", validateLimiter, async (req, res) => {
 
 app.use("/api/v1/installations", installationRouter)
 app.use("/api/developer", developerRouter)
+app.use("/api/admin", hostSecurity.requireAdminHost, hostSecurity.adminCors)
 app.use("/api/admin/verification", adminVerificationRouter)
 
 app.post("/api/referrals/track", trackingLimiter, async (req, res) => {
@@ -535,6 +485,8 @@ if (!hasFrontend && config.isProd) {
     console.error(`Frontend build missing at ${frontendIndex}. Run npm run build from the repo root.`)
     process.exit(1)
 }
+
+app.use(hostSecurity.adminUiGate)
 
 if (hasFrontend) {
     app.use(

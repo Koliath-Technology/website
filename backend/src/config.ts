@@ -41,12 +41,30 @@ export const config = {
     databaseSslRejectUnauthorized: process.env.DATABASE_SSL_REJECT_UNAUTHORIZED === "true",
     /**
      * Google provider subjects or Firebase Auth uids allowed to open the admin API.
+     * Each entry may be `global_users.google_sub` or the Firebase Auth uid (`decoded.uid`).
      * Empty denies everyone.
      */
     adminGoogleSubs: (process.env.ADMIN_GOOGLE_SUBS ?? "")
         .split(",")
         .map((value) => value.trim())
         .filter(Boolean),
+    /**
+     * Canonical admin origin. Defaults to https://admin.koliath.in.
+     * Public marketing origins are ignored. Not a secret.
+     */
+    adminOrigin: process.env.ADMIN_ORIGIN ?? "",
+    /**
+     * Optional comma-separated Host allowlist for admin APIs.
+     * koliath.in and www.koliath.in are stripped. Empty uses admin.koliath.in,
+     * plus localhost only when NODE_ENV is not production.
+     */
+    adminHosts: process.env.ADMIN_HOSTS ?? "",
+    /**
+     * Optional CORS allowlist for the admin host and /api/admin.
+     * https://koliath.in and https://www.koliath.in are stripped even if listed.
+     * Empty uses ADMIN_ORIGIN.
+     */
+    adminCorsOrigins: process.env.ADMIN_CORS_ORIGINS ?? "",
     /** Lifetime of a download verification token. Clamped to 60–86400 seconds. */
     installTokenTtlSeconds: clampTokenTtl(process.env.INSTALL_TOKEN_TTL_SECONDS),
     /** Salt for hashed client IPs used only as a fraud velocity key. */

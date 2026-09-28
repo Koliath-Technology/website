@@ -1,3 +1,5 @@
+import { csrfCookieName } from "./adminHost"
+
 /**
  * Same-origin `/api` when `VITE_API_BASE` is empty (Vite proxy in dev, reverse
  * proxy in production). A production build never calls localhost — that value
@@ -16,8 +18,6 @@ function resolveApiRoot(): string {
 
 export const API_ROOT = resolveApiRoot()
 
-const CSRF_COOKIE = "koliath_csrf"
-
 export class ApiError extends Error {
     status: number
 
@@ -30,9 +30,10 @@ export class ApiError extends Error {
 
 function readCsrfCookie(): string | null {
     if (typeof document === "undefined") return null
+    const name = csrfCookieName()
     for (const part of document.cookie.split("; ")) {
-        if (part.startsWith(`${CSRF_COOKIE}=`)) {
-            return decodeURIComponent(part.slice(CSRF_COOKIE.length + 1))
+        if (part.startsWith(`${name}=`)) {
+            return decodeURIComponent(part.slice(name.length + 1))
         }
     }
     return null
