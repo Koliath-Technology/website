@@ -38,7 +38,7 @@ function readCsrfCookie(): string | null {
     return null
 }
 
-function authHeaders(includeCsrf: boolean): HeadersInit {
+export function authHeaders(includeCsrf: boolean): HeadersInit {
     const headers: Record<string, string> = {
         "Content-Type": "application/json",
     }
@@ -49,7 +49,7 @@ function authHeaders(includeCsrf: boolean): HeadersInit {
     return headers
 }
 
-async function parseJson<T>(response: Response): Promise<T> {
+export async function parseJson<T>(response: Response): Promise<T> {
     const data = await response.json().catch(() => ({}))
     if (!response.ok) {
         const raw =
@@ -88,6 +88,9 @@ export interface DashboardUser {
     pointsEarned: number
     pointsSpent: number
     pointsAvailable: number
+    installPoints?: number
+    accountStatus?: string
+    riskStatus?: string
     totalReferrals: number
     pendingReferrals: number
     confirmedReferrals: number

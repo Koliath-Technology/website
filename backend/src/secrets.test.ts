@@ -11,13 +11,21 @@ test("secretsEqual matches identical values and rejects others", () => {
     assert.equal(secretsEqual("short", "a-much-longer-secret"), false)
 })
 
-test("redact removes database URLs and JWTs from log text", () => {
+test("redact removes database URLs, JWTs, app secrets, and verification tokens", () => {
     const jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
-    const text = redact(`failed postgres://app:example@db.internal:5432/mydb token ${jwt}`)
+    const secret = "kol_abc123def456.supersecretvalue"
+    const verification = "kvt_abcdefghijklmnopqrstuvwxyz012345"
+    const text = redact(
+        `failed postgres://app:example@db.internal:5432/mydb token ${jwt} ${secret} ${verification}`
+    )
     assert.equal(text.includes("example@"), false)
     assert.equal(text.includes(jwt), false)
+    assert.equal(text.includes(secret), false)
+    assert.equal(text.includes(verification), false)
     assert.match(text, /postgres:\/\/\[redacted\]/)
     assert.match(text, /\[redacted-jwt\]/)
+    assert.match(text, /\[redacted-app-secret\]/)
+    assert.match(text, /\[redacted-verification-token\]/)
 })
 
 test("database SSL is strict only when requested, and local URLs stay plain", () => {

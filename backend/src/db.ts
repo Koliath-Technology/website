@@ -7,13 +7,16 @@ import { databasePoolConfig } from "./pgSsl"
 import { logError } from "./redact"
 import { getRule, isSourceApp, type SourceApp, type QualificationEvent } from "./rules"
 import { safePictureUrl, type AuthUser } from "./auth"
+import { ensureInstallSchema } from "./installations/schema"
+import { sumInstallRewardPoints } from "./ledger"
 
 export type Career = z.infer<typeof careersSchema>
 
-const pool = new Pool({
+export const dbPool = new Pool({
     ...databasePoolConfig(config.databaseUrl, config.databaseSslRejectUnauthorized),
     max: 10,
 })
+const pool = dbPool
 
 function mintGlobalCode(): string {
     return `KL-${randomBytes(3).toString("hex").toUpperCase()}`
@@ -167,12 +170,15 @@ async function createTable() {
                 category = EXCLUDED.category;
         `)
 
+        await ensureInstallSchema(pool)
+
         console.log("Tables ready")
     } catch (e) {
         logError("Error creating tables", e)
+        throw e
     }
 }
-void createTable()
+export const dbReady: Promise<void> = createTable()
 
 export async function createCareer(data: Career) {
     const validated = careersSchema.parse(data)
@@ -292,6 +298,14 @@ export async function getDashboardForUser(globalUserId: number) {
         }
     }
 
+    let installPoints = 0
+    try {
+        installPoints = await sumInstallRewardPoints(pool, globalUserId)
+    } catch (error) {
+        logError("install ledger unavailable", error)
+    }
+    pointsEarned += installPoints
+
     const links = await pool.query(
         `SELECT source_app AS "sourceApp", app_uid AS "appUid", referral_code AS "referralCode", linked_at AS "linkedAt"
          FROM app_account_links WHERE global_user_id = $1`,
@@ -331,6 +345,9 @@ export async function getDashboardForUser(globalUserId: number) {
         pointsEarned,
         pointsSpent,
         pointsAvailable: Math.max(0, pointsEarned - pointsSpent),
+        installPoints,
+        accountStatus: user.account_status ?? "active",
+        riskStatus: user.risk_status ?? "NORMAL",
         totalReferrals,
         pendingReferrals,
         confirmedReferrals,
@@ -550,7 +567,13 @@ export async function createRedemption(code: string, rewardId: number, contactEm
         )
         const earned = parseInt(balanceResult.rows[0].points_earned, 10) || 0
         const spent = parseInt(balanceResult.rows[0].points_spent, 10) || 0
-        const available = earned - spent
+        const owner = await client.query(
+            `SELECT global_user_id FROM referral_codes WHERE code = $1`,
+            [normalized]
+        )
+        const ownerId = owner.rows[0]?.global_user_id as number | null | undefined
+        const installPoints = ownerId ? await sumInstallRewardPoints(client, Number(ownerId)) : 0
+        const available = earned + installPoints - spent
 
         if (available < cost) {
             throw Object.assign(

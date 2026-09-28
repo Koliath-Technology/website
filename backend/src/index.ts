@@ -46,7 +46,11 @@ import {
     linkAppAccount,
     userOwnsCode,
     qualifyReferral,
+    dbReady,
 } from "./db"
+import { installationRouter } from "./installations/routes"
+import { developerRouter } from "./apps/routes"
+import { adminVerificationRouter } from "./admin/routes"
 
 const app = express()
 
@@ -495,6 +499,10 @@ app.get("/api/referrals/validate", validateLimiter, async (req, res) => {
     }
 })
 
+app.use("/api/v1/installations", installationRouter)
+app.use("/api/developer", developerRouter)
+app.use("/api/admin/verification", adminVerificationRouter)
+
 app.post("/api/referrals/track", trackingLimiter, async (req, res) => {
     const body = referralTrackingSchema.safeParse(req.body)
     if (!body.success) {
@@ -579,12 +587,23 @@ app.use((err: unknown, _req: express.Request, res: express.Response, _next: expr
     res.status(500).json({ success: false, message: "Internal server error" })
 })
 
-app.listen(config.port, () => {
-    console.log(`Koliath listening on port ${config.port}`)
-    const firebaseStatus = firebaseCredentialStatus()
-    if (!firebaseStatus.configured) {
-        const line = `Firebase Admin is not configured (${firebaseStatus.missing.join(", ")}). Login and protected routes fail closed.`
-        if (config.isProd) console.error(line)
-        else console.warn(line)
-    }
-})
+if (require.main === module) {
+    void dbReady
+        .then(() => {
+            app.listen(config.port, () => {
+                console.log(`Koliath listening on port ${config.port}`)
+                const firebaseStatus = firebaseCredentialStatus()
+                if (!firebaseStatus.configured) {
+                    const line = `Firebase Admin is not configured (${firebaseStatus.missing.join(", ")}). Login and protected routes fail closed.`
+                    if (config.isProd) console.error(line)
+                    else console.warn(line)
+                }
+            })
+        })
+        .catch((error: unknown) => {
+            logError("database setup failed", error)
+            process.exit(1)
+        })
+}
+
+export { app }

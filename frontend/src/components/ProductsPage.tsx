@@ -2,8 +2,11 @@ import { Link, useNavigate } from "react-router-dom"
 import { motion } from "framer-motion"
 import { ArrowRight } from "lucide-react"
 import { Button } from "./ui/button"
+import { useState } from "react"
 import { useReferralTracker } from "../hooks/useReferralTracker"
-import { downloadUrls, withReferral } from "../lib/downloads"
+import { downloadUrls } from "../lib/downloads"
+import { useAuth } from "../lib/auth"
+import { openVerifiedDownload } from "../lib/installApi"
 
 const products = [
     {
@@ -108,21 +111,27 @@ export function ProductsShowcase({ compact = false }: { compact?: boolean }) {
 
 export default function ProductsPage() {
     const navigate = useNavigate()
+    const { user } = useAuth()
     const { refCode, trackEvent } = useReferralTracker()
+    const [downloadNote, setDownloadNote] = useState<string | null>(null)
 
     const onDownload = (slug: string) => {
         void trackEvent("install_attempt")
-        const external = downloadUrls[slug]
-        if (external) {
-            window.open(withReferral(external, refCode), "_blank", "noopener,noreferrer")
-            return
-        }
-        if (slug === "diabetic-buddy") {
-            const search = refCode ? `?ref=${encodeURIComponent(refCode)}` : ""
-            navigate(`/diabetic-app${search}`)
-            return
-        }
-        navigate(`/contact?topic=download&app=${encodeURIComponent(slug)}`)
+        void openVerifiedDownload({
+            slug,
+            loggedIn: Boolean(user),
+            refCode,
+            storeUrl: downloadUrls[slug],
+            onMissingStore: () => {
+                if (user) return
+                if (slug === "diabetic-buddy") {
+                    const search = refCode ? `?ref=${encodeURIComponent(refCode)}` : ""
+                    navigate(`/diabetic-app${search}`)
+                    return
+                }
+                navigate(`/contact?topic=download&app=${encodeURIComponent(slug)}`)
+            },
+        }).then(setDownloadNote)
     }
 
     return (
@@ -134,6 +143,15 @@ export default function ProductsPage() {
                     <p className="max-w-6xl mx-auto text-sm rounded-2xl border border-[var(--line)] bg-[var(--accent-soft)] px-5 py-3 text-[var(--ink)]">
                         Referral code <span className="font-mono font-semibold">{refCode}</span> is
                         saved for this visit. Download buttons attribute the install attempt to it.
+                        Points are added only after the app confirms the install.
+                    </p>
+                </div>
+            )}
+
+            {downloadNote && (
+                <div className="px-6 mb-4">
+                    <p className="max-w-6xl mx-auto text-sm rounded-2xl border border-[var(--line)] bg-white px-5 py-3 text-[var(--ink)]">
+                        {downloadNote}
                     </p>
                 </div>
             )}
@@ -217,12 +235,18 @@ export default function ProductsPage() {
                     <p className="text-[var(--muted)] leading-relaxed max-w-2xl mb-6">
                         The hub is not only for Koliath’s own products. Businesses can list an app
                         here so people discover it, download it, and land through a referral link.
-                        That is the path to more installs. Tell us the app name, store URLs, and
-                        who should own the listing.
+                        Registered developers can create an app id and a one-time API credential
+                        in the developer portal. Tell us the app name, store URLs, and who should
+                        own the listing.
                     </p>
-                    <Button asChild className="rounded-full px-6 h-11">
-                        <Link to="/contact?topic=list-app">Contact us to list an app</Link>
-                    </Button>
+                    <div className="flex flex-wrap gap-3">
+                        <Button asChild className="rounded-full px-6 h-11">
+                            <Link to="/contact?topic=list-app">Contact us to list an app</Link>
+                        </Button>
+                        <Button asChild variant="outline" className="rounded-full px-6 h-11">
+                            <Link to="/developer">Developer portal</Link>
+                        </Button>
+                    </div>
                 </div>
             </section>
         </div>

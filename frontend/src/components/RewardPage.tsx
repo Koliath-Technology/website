@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import { motion, AnimatePresence } from "framer-motion"
 import {
     Gift,
@@ -25,6 +25,16 @@ import {
     type Reward,
 } from "../lib/api"
 import { useReferralTracker } from "../hooks/useReferralTracker"
+import { downloadUrls } from "../lib/downloads"
+import { openVerifiedDownload } from "../lib/installApi"
+
+const INSTALL_APPS = [
+    { slug: "sapient", label: "Sapient" },
+    { slug: "adverts", label: "Adverts" },
+    { slug: "adverts-rewards", label: "Adverts Rewards" },
+    { slug: "advert-cohort", label: "Advert Cohort" },
+    { slug: "diabetic-buddy", label: "Diabetic Buddy" },
+]
 
 const PREVIEW_REWARDS: Reward[] = [
     { id: -1, title: "₹500 Flipkart Voucher", points_cost: 800, category: "Shopping" },
@@ -42,7 +52,23 @@ export default function RewardPage() {
     const [redeemSuccess, setRedeemSuccess] = useState<string | null>(null)
     const [copied, setCopied] = useState(false)
     const [catalogNote, setCatalogNote] = useState<string | null>(null)
-    const { refCode } = useReferralTracker()
+    const navigate = useNavigate()
+    const { refCode, trackEvent } = useReferralTracker()
+    const [downloadNote, setDownloadNote] = useState<string | null>(null)
+
+    const onInstallDownload = (slug: string) => {
+        void trackEvent("install_attempt")
+        void openVerifiedDownload({
+            slug,
+            loggedIn: Boolean(user),
+            refCode,
+            storeUrl: downloadUrls[slug],
+            onMissingStore: () => {
+                if (user) return
+                navigate(`/contact?topic=download&app=${encodeURIComponent(slug)}`)
+            },
+        }).then(setDownloadNote)
+    }
 
     useEffect(() => {
         Promise.all([fetchRewards(), fetchReferralRules()])
@@ -239,6 +265,11 @@ export default function RewardPage() {
                                             {card.label}
                                         </div>
                                         <div className="text-3xl font-semibold">{card.value}</div>
+                                        {card.label === "Available" && (user.installPoints ?? 0) > 0 && (
+                                            <p className="text-xs text-[var(--muted)] mt-1">
+                                                Includes {user.installPoints} verified install points
+                                            </p>
+                                        )}
                                     </div>
                                 ))}
                             </div>
@@ -285,6 +316,40 @@ export default function RewardPage() {
                     </motion.section>
                 )}
             </AnimatePresence>
+
+            <section className="px-6 py-8">
+                <div className="max-w-6xl mx-auto rounded-[1.75rem] border border-[var(--line)] bg-white/90 p-7">
+                    <h2 className="font-display text-2xl font-semibold mb-2">Verify an install</h2>
+                    <p className="text-[var(--muted)] mb-4 max-w-3xl">
+                        A download click does not award points. When you are signed in, Koliath mints a
+                        short-lived verification token for the app. Points land only after that app
+                        confirms the install with the server. This is a confidence check, not proof
+                        that a person installed the app.
+                    </p>
+                    <div className="flex flex-wrap gap-2 mb-4">
+                        {INSTALL_APPS.map((app) => (
+                            <Button
+                                key={app.slug}
+                                type="button"
+                                variant="outline"
+                                className="rounded-full"
+                                onClick={() => onInstallDownload(app.slug)}
+                            >
+                                {downloadUrls[app.slug] ? `Download ${app.label}` : `Request ${app.label}`}
+                            </Button>
+                        ))}
+                    </div>
+                    {downloadNote && <p className="text-sm text-[var(--ink)] mb-3">{downloadNote}</p>}
+                    <div className="flex flex-wrap gap-4 text-sm">
+                        <Link to="/developer" className="text-[var(--accent)] hover:underline">
+                            Developer portal
+                        </Link>
+                        <Link to="/admin" className="text-[var(--accent)] hover:underline">
+                            Verification admin
+                        </Link>
+                    </div>
+                </div>
+            </section>
 
             <section className="px-6 py-12">
                 <div className="max-w-6xl mx-auto">

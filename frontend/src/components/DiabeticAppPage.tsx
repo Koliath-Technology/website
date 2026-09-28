@@ -1,8 +1,12 @@
 import { motion } from "framer-motion"
 import { Button } from "./ui/button"
 import { Shield, Zap, Activity, Brain, Smartphone, Database } from "lucide-react"
+import { useState } from "react"
 import { useReferralTracker } from "../hooks/useReferralTracker"
 import { handleAppDownload } from "../lib/deepLinking"
+import { downloadUrls } from "../lib/downloads"
+import { useAuth } from "../lib/auth"
+import { openVerifiedDownload } from "../lib/installApi"
 
 const features = [
     {
@@ -28,11 +32,22 @@ const features = [
 ]
 
 export default function DiabeticAppPage() {
+    const { user } = useAuth()
     const { refCode, trackEvent } = useReferralTracker();
+    const [downloadNote, setDownloadNote] = useState<string | null>(null)
 
     const onDownloadClick = () => {
-        trackEvent('install_attempt');
-        handleAppDownload(refCode);
+        void trackEvent('install_attempt');
+        void openVerifiedDownload({
+            slug: "diabetic-buddy",
+            loggedIn: Boolean(user),
+            refCode,
+            storeUrl: downloadUrls["diabetic-buddy"],
+            onMissingStore: (verification) => {
+                if (user) return
+                void handleAppDownload(refCode, verification)
+            },
+        }).then(setDownloadNote)
     };
 
     return (
@@ -67,6 +82,9 @@ export default function DiabeticAppPage() {
                             <Button size="lg" onClick={onDownloadClick} className="bg-blue-600 hover:bg-blue-700 text-white rounded-full px-8">
                                 Download App
                             </Button>
+                            {downloadNote && (
+                                <p className="w-full text-sm text-slate-300 max-w-xl">{downloadNote}</p>
+                            )}
                             <Button size="lg" variant="outline" className="border-slate-800 hover:bg-slate-900 rounded-full px-8">
                                 Read Research
                             </Button>

@@ -10,6 +10,8 @@ import RewardPage from "./components/RewardPage"
 import ProductsPage from "./components/ProductsPage"
 import ContactPage from "./components/ContactPage"
 import LoginPage from "./components/LoginPage"
+import DeveloperPortal from "./components/DeveloperPortal"
+import AdminVerificationPage from "./components/AdminVerificationPage"
 import { useReferralTracker } from "./hooks/useReferralTracker"
 
 function RedirectPreserve({ to }: { to: string }) {
@@ -34,6 +36,8 @@ const App: React.FC = () => {
                     <Route path="/diabetic-app" element={<DiabeticAppPage />} />
                     <Route path="/earn" element={<RewardPage />} />
                     <Route path="/login" element={<LoginPage />} />
+                    <Route path="/developer" element={<DeveloperPortal />} />
+                    <Route path="/admin" element={<AdminVerificationPage />} />
                     <Route path="/contact" element={<ContactPage />} />
                     <Route path="/reward" element={<RedirectPreserve to="/earn" />} />
                     <Route path="/rewards" element={<RedirectPreserve to="/earn" />} />
