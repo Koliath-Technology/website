@@ -8,7 +8,7 @@ A granted reward means the presented token was unused, unexpired, bound to that 
 
 Play Integrity and App Attest are stubs that always return false. v1 leaves attestation optional. Set `INSTALL_REQUIRE_ATTESTATION=true` or the per-app admin flag `requireAttestation` to require it. Required attestation with a missing token, or with a token the stub rejects, denies the reward (`attestation_required`) and does not write the ledger. Do not describe a skipped check as a passed integrity verdict.
 
-Developer registration cannot choose `pointsAwarded` or `requireAttestation`. New apps are `pending` with zero points until an admin in `ADMIN_GOOGLE_SUBS` approves them. That closes the path where any Google user registers an app and pays themselves.
+Developer registration cannot choose `pointsAwarded` or `requireAttestation`. New apps are `pending` with zero points until the admin console (`https://admin.koliath.in/`) approves them. That closes the path where any Google user registers an app and pays themselves.
 
 ## Secrets
 
@@ -47,7 +47,7 @@ Signals include a repeated device/app reward, an `installation_id` already linke
 
 ## Admin
 
-`/api/admin/verification/*` requires a signed-in account whose Google provider subject or Firebase Auth uid is listed in `ADMIN_GOOGLE_SUBS`. An empty list denies everyone. The route also requires `Host: admin.koliath.in` (localhost only outside production). `https://koliath.in` is not an allowed CORS origin for those responses. The console is `https://admin.koliath.in/`. `https://koliath.in/admin` is a 404, and the admin session cookie is not the marketing `koliath_session` cookie. Hiding a link is not the control.
+This website does not serve the admin console. `/api/admin/*` is not mounted and returns 404. `GET /admin` redirects to `https://admin.koliath.in/` (`Koliath-Technology/website-admin`). Public session cookies stay `koliath_session` and `koliath_csrf`. Approvals, risk changes, and catalog-app secrets live on that service, which uses the same Postgres and Firebase project. Do not drop those tables from this repo's migrations.
 
 ## Privacy minimisation
 

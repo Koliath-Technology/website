@@ -1,6 +1,6 @@
 # Rewards program
 
-The Earn page and admin console read coin amounts from the API. Environment variables are the source of truth. Google sign-in stays on Firebase Auth. There is no second login system.
+The Earn page reads coin amounts from this API. Environment variables on this service are the source of truth for the public program. The admin console at `https://admin.koliath.in/` (`Koliath-Technology/website-admin`) reads the same shared database. Google sign-in stays on Firebase Auth. There is no second login system.
 
 Install verification, device rows, Play Integrity / App Attest hooks, and the `points_ledger` install payout already exist. This program adds first-login coins, signup referrals, and the gift card on top of that ledger.
 
@@ -18,7 +18,7 @@ Install verification, device rows, Play Integrity / App Attest hooks, and the `p
 
 `INSTALL_TOKEN_TTL_SECONDS`, when set, overrides the minutes value. A per-app `verificationConfig.tokenTtlSeconds` still overrides both. All three are clamped to 60–86400 seconds.
 
-Admin host variables are unchanged: `ADMIN_ORIGIN`, `ADMIN_HOSTS`, `ADMIN_CORS_ORIGINS`, `ADMIN_GOOGLE_SUBS`. An empty allowlist still denies the admin API. The console is only on `https://admin.koliath.in/`.
+Admin allowlists and `ADMIN_*` host variables belong on the website-admin service, not here. This API does not mount `/api/admin`. `GET /admin` redirects to `https://admin.koliath.in/`.
 
 ## Routes
 
@@ -30,13 +30,12 @@ Admin host variables are unchanged: `ADMIN_ORIGIN`, `ADMIN_HOSTS`, `ADMIN_CORS_O
 | `POST` | `/api/v1/installations/start` | Existing. Download click. No points. |
 | `POST` | `/api/v1/installations/verify` | Existing. `{verified, reward_status, points}` after anti-fraud. Rejection does not include rule internals. |
 | `POST` | `/api/rewards/gift-card` | Signed-in, CSRF. Body `{idempotencyKey, denominationInr?}`. Re-checks coins and referrals inside a transaction. |
-| `GET` | `/api/admin/verification/overview` | Admin host only. Includes the program object. |
 
 Invite links are `https://koliath.in/signup?ref=CODE`. `/signup` keeps the query string and opens Google sign-in.
 
 ## Reused
 
-- Firebase ID token verification and the host-scoped session cookies
+- Firebase ID token verification and the `koliath_session` / `koliath_csrf` cookies
 - `points_ledger` and its install unique indexes (`event_type = install_reward`, the public name `APP_INSTALL`)
 - `devices`, `user_devices`, `app_installations`, fraud rules, and attestation stubs in `backend/src/installations/attestation.ts`
 - App registry (`apps`, credentials, pending until an admin sets status and points)
@@ -54,12 +53,12 @@ Server app secrets stay in `app_credentials` and are shown once to the developer
 
 ## Smoke
 
-1. Set the reward variables and `ADMIN_GOOGLE_SUBS` on the existing Railway service. Point `admin.koliath.in` at that service.
+1. Set the reward variables on the website Railway service. Leave `admin.koliath.in` on `website-admin-deploy`.
 2. `GET /api/rewards/program` returns the coin amounts.
 3. Sign in with Google on `https://koliath.in/signup?ref=SOMEONE`. The new account receives first-login coins once. A second sign-in does not add them again. Self-referral and a shared device key do not pay the referrer.
 4. Download while signed in, then `POST /api/v1/installations/verify` from the app server. A click alone leaves the ledger unchanged.
 5. With enough coins and 3 granted referrals, `POST /api/rewards/gift-card` debits once. The same `idempotencyKey` does not debit again. A short balance or too few referrals returns `Gift card is locked` and writes nothing.
-6. Open `https://admin.koliath.in/` with an allowlisted Google account. Overview shows the program. `https://koliath.in/admin` stays a 404.
+6. Open `https://admin.koliath.in/` for the operator console. `https://koliath.in/admin` redirects there and does not serve an admin page from this repo.
 
 ```bash
 npm test --prefix backend

@@ -62,8 +62,7 @@ npm run dev:backend
 | http://localhost:5173/rewards | Redirects to `/earn` |
 | http://localhost:5173/referrals | Redirects to `/earn` |
 | http://localhost:5173/diabetic-app | Diabetic Buddy download page |
-| http://localhost:5173/admin | Local admin UI only. Production `koliath.in/admin` is 404 |
-| http://admin.localhost:5173/ | Local stand-in for `https://admin.koliath.in/` |
+| http://localhost:5173/admin | Leaves this site for `https://admin.koliath.in/` |
 
 Refresh each of those paths. Vite’s dev server is an SPA: a refresh serves `index.html` and React Router picks the route.
 
@@ -91,11 +90,11 @@ curl -s http://localhost:3000/api/health
 curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3000/earn
 curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3000/contact
 curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3000/products
-curl -s -o /dev/null -w "%{http_code}\n" -H "Host: koliath.in" http://127.0.0.1:3000/admin
-curl -s -o /dev/null -w "%{http_code}\n" -H "Host: admin.koliath.in" http://127.0.0.1:3000/admin
+curl -s -o /dev/null -w "%{http_code} %{redirect_url}\n" http://127.0.0.1:3000/admin
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:3000/api/admin/verification/overview
 ```
 
-`/api/health` is JSON. `/earn`, `/contact`, and `/products` are HTML (`200`). Refresh is the same GET. With `Host: koliath.in`, `/admin` is **404**. With `Host: admin.koliath.in`, `/admin` is **302** to `/`.
+`/api/health` is JSON. `/earn`, `/contact`, and `/products` are HTML (`200`). Refresh is the same GET. `GET /admin` is **302** to `https://admin.koliath.in/`. `/api/admin/*` is **404**.
 
 Confirm the client bundle does not call localhost:
 
@@ -109,6 +108,6 @@ grep -R "localhost:3000" frontend/dist/assets && echo "FAIL" || echo "OK: no loc
 
 See [RAILWAY.md](RAILWAY.md). One service builds both packages and runs the API. You do not need a separate static host or an nginx SPA fallback.
 
-Set `NODE_ENV=production`. `DATABASE_URL` must be the Railway Postgres plugin URL. `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`, and `APP_WEBHOOK_SECRET` must be real values you create — this repo does not contain them. Set the public `VITE_FIREBASE_*` web fields at build time. Set `CORS_ORIGINS=https://koliath.in,https://www.koliath.in`. Leave `VITE_API_BASE` unset.
+Set `NODE_ENV=production`. `DATABASE_URL` must be the Railway Postgres plugin URL. `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`, and `APP_WEBHOOK_SECRET` must be real values you create — this repo does not contain them. Set the public `VITE_FIREBASE_*` web fields at build time. Set `CORS_ORIGINS=https://koliath.in,https://www.koliath.in`. Leave `VITE_API_BASE` unset. Do not point `admin.koliath.in` at this service. The console is `Koliath-Technology/website-admin`.
 
 There are no `/legal/*` pages. If you add them as client routes, the same `index.html` fallback covers them.

@@ -1,4 +1,5 @@
-import { csrfCookieName } from "./adminHost"
+/** Must match backend/src/auth.ts CSRF_COOKIE. */
+export const CSRF_COOKIE_NAME = "koliath_csrf"
 
 /**
  * Same-origin `/api` when `VITE_API_BASE` is empty (Vite proxy in dev, reverse
@@ -30,7 +31,7 @@ export class ApiError extends Error {
 
 function readCsrfCookie(): string | null {
     if (typeof document === "undefined") return null
-    const name = csrfCookieName()
+    const name = CSRF_COOKIE_NAME
     for (const part of document.cookie.split("; ")) {
         if (part.startsWith(`${name}=`)) {
             return decodeURIComponent(part.slice(name.length + 1))

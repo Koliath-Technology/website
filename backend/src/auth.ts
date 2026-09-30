@@ -2,7 +2,6 @@ import { randomBytes } from "crypto"
 import type { Request, Response, NextFunction } from "express"
 import { cert, getApps, initializeApp, type App } from "firebase-admin/app"
 import { getAuth, type DecodedIdToken } from "firebase-admin/auth"
-import { isDedicatedAdminHostname } from "./admin/host"
 import { config } from "./config"
 import { firebaseCredentialStatus, normalizePrivateKey } from "./firebaseCredentials"
 import { logError } from "./redact"
@@ -12,8 +11,6 @@ const MAX_ID_TOKEN_LENGTH = 8192
 
 export const SESSION_COOKIE = "koliath_session"
 export const CSRF_COOKIE = "koliath_csrf"
-export const ADMIN_SESSION_COOKIE = "koliath_admin_session"
-export const ADMIN_CSRF_COOKIE = "koliath_admin_csrf"
 
 export interface SessionCookieScope {
     session: string
@@ -22,25 +19,11 @@ export interface SessionCookieScope {
 }
 
 /**
- * Marketing cookies stay host-only and Lax. Admin cookies are a different
- * name, SameSite=Strict, and also host-only (Domain is never set). In
- * production the admin names use the `__Host-` prefix, which browsers reject
- * unless the cookie is Secure, Path=/, and has no Domain.
+ * Host-only Lax cookies for koliath.in. Domain is never set.
+ * The admin console is a separate service and does not share these names.
  */
-export function sessionCookieScopeFor(dedicatedAdminHost: boolean, secure: boolean): SessionCookieScope {
-    if (!dedicatedAdminHost) {
-        return { session: SESSION_COOKIE, csrf: CSRF_COOKIE, sameSite: "lax" }
-    }
-    const prefix = secure ? "__Host-" : ""
-    return {
-        session: `${prefix}${ADMIN_SESSION_COOKIE}`,
-        csrf: `${prefix}${ADMIN_CSRF_COOKIE}`,
-        sameSite: "strict",
-    }
-}
-
-export function sessionCookieScope(hostname: string): SessionCookieScope {
-    return sessionCookieScopeFor(isDedicatedAdminHostname(hostname), config.cookieSecure)
+export function sessionCookieScope(_hostname = ""): SessionCookieScope {
+    return { session: SESSION_COOKIE, csrf: CSRF_COOKIE, sameSite: "lax" }
 }
 
 export function sessionCookieAttributes(
@@ -219,9 +202,7 @@ export function authFailure(error: unknown): { status: number; message: string }
 
 /**
  * Firebase ID token via Authorization: Bearer (mobile apps) or the httpOnly
- * session cookie for this Host. The admin host reads only the admin cookie,
- * never koliath_session. Cookie-authenticated mutations also need the CSRF
- * header that matches that host's CSRF cookie.
+ * session cookie. Cookie-authenticated mutations also need the CSRF header.
  */
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
     try {

@@ -39,35 +39,10 @@ export default defineConfig(({ mode }) => {
                 "@": path.resolve(process.cwd(), "src"),
             },
         },
-        build: {
-            modulePreload: {
-                resolveDependencies(_filename, deps) {
-                    return deps.filter((dep) => !dep.includes("/assets/admin/"))
-                },
-            },
-            rollupOptions: {
-                output: {
-                    // Async admin page chunk only. Do not use manualChunks here:
-                    // that pulled shared runtime into this file and made the
-                    // marketing bundle import it. The API serves this prefix
-                    // only for Host admin.koliath.in.
-                    chunkFileNames(chunkInfo) {
-                        const facade = chunkInfo.facadeModuleId?.replaceAll("\\", "/") ?? ""
-                        if (facade.includes("/AdminVerificationPage")) {
-                            return "assets/admin/[name]-[hash].js"
-                        }
-                        return "assets/[name]-[hash].js"
-                    },
-                },
-            },
-        },
         server: {
-            allowedHosts: ["admin.localhost"],
             proxy: {
                 "/api": {
                     target: "http://localhost:3000",
-                    // Preserve Host so admin.localhost is the admin console and
-                    // localhost stays the marketing site.
                     changeOrigin: false,
                     secure: false,
                 },

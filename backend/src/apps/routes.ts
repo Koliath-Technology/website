@@ -1,9 +1,6 @@
-import { Router, type Request, type Response } from "express"
+import { Router, type Response } from "express"
 import rateLimit from "express-rate-limit"
-import { isAdminSubject } from "../admin/guard"
-import { catalogAdminHostDenial } from "../admin/host"
 import { requireAuth } from "../auth"
-import { config } from "../config"
 import { getGlobalUserByGoogleSub, upsertGlobalUser } from "../db"
 import { logError } from "../redact"
 import { registerAppSchema } from "../installations/schemas"
@@ -20,19 +17,12 @@ import {
 const router = Router()
 
 function manageAllowed(
-    req: Request,
     res: Response,
     app: { ownerUserId: number | null },
     userId: number
 ): boolean {
-    const admin = isAdminSubject(req.authUser, config.adminGoogleSubs)
-    if (!canManageApp(app, userId, admin)) {
+    if (!canManageApp(app, userId)) {
         res.status(403).json({ success: false, message: "Forbidden" })
-        return false
-    }
-    const denial = catalogAdminHostDenial(req.hostname, admin, app.ownerUserId, userId)
-    if (denial) {
-        res.status(denial.status).json({ success: false, message: denial.message })
         return false
     }
     return true
@@ -118,7 +108,7 @@ router.get("/apps/:appId", requireAuth, async (req, res) => {
         const appId = String(req.params.appId)
         const app = await getAppByPublicId(appId)
         if (!app) return res.status(404).json({ success: false, message: "App not found" })
-        if (!manageAllowed(req, res, app, user.id)) return
+        if (!manageAllowed(res, app, user.id)) return
         const [credentials, stats] = await Promise.all([
             listCredentialSummaries(app.id),
             appStats(app.id),
@@ -142,7 +132,7 @@ router.post("/apps/:appId/credentials", credentialLimiter, requireAuth, async (r
         if (!user) user = await upsertGlobalUser(req.authUser!)
         const app = await getAppByPublicId(String(req.params.appId))
         if (!app) return res.status(404).json({ success: false, message: "App not found" })
-        if (!manageAllowed(req, res, app, user.id)) return
+        if (!manageAllowed(res, app, user.id)) return
         const credential = await issueAppCredential(app.id)
         res.setHeader("Cache-Control", "no-store")
         res.status(201).json({

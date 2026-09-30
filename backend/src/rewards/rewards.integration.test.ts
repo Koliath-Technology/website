@@ -2,7 +2,6 @@ process.env.NODE_ENV = "test"
 process.env.DATABASE_URL =
     process.env.TEST_DATABASE_URL ?? "postgres://postgres:postgres@localhost:5432/koliath_install_test"
 process.env.INSTALL_IP_HASH_SALT = "test-salt"
-process.env.ADMIN_GOOGLE_SUBS = ""
 
 import assert from "node:assert/strict"
 import test from "node:test"
