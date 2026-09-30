@@ -10,11 +10,7 @@ Railway already runs one Node service. No new service is required. Do not put th
 
 | Variable | Purpose |
 | --- | --- |
-| `DATABASE_URL` | Existing Postgres URL. Install tables are created in this database. |
-| `ADMIN_GOOGLE_SUBS` | Comma-separated Google provider subjects (`global_users.google_sub`) or Firebase Auth uids allowed to call `/api/admin/verification`. Either form matches. Empty means nobody. |
-| `ADMIN_ORIGIN` | Canonical admin origin. Set `https://admin.koliath.in`. Public marketing origins are ignored. |
-| `ADMIN_CORS_ORIGINS` | Optional. Admin API and admin-host CORS allowlist. Defaults to `ADMIN_ORIGIN`. `https://koliath.in` and `https://www.koliath.in` are stripped. |
-| `ADMIN_HOSTS` | Optional. Leave unset so production admin APIs accept only `admin.koliath.in`. |
+| `DATABASE_URL` | Existing Postgres URL. Install tables are created in this database. The admin service uses the same URL. Do not drop shared tables. |
 | `INSTALL_TOKEN_TTL_SECONDS` | Optional verification token lifetime in seconds. When unset, `VERIFICATION_TOKEN_EXPIRY_MINUTES` (default 1440) is used. Clamped to 60–86400. Per-app `tokenTtlSeconds` still overrides. |
 | `INSTALL_IP_HASH_SALT` | Secret salt for IP velocity hashes. Set a long random value in production. |
 | `INSTALL_REQUIRE_ATTESTATION` | Set to `true` to require Play Integrity / App Attest on every verify. The v1 stubs then fail closed and no install reward is granted. Leave unset for the default, where attestation is optional and client ids are fraud signals only. |
@@ -23,31 +19,23 @@ Railway already runs one Node service. No new service is required. Do not put th
 
 Generate a salt outside the repo, for example `openssl rand -hex 32`.
 
-Find a Google subject after the person has signed in:
+Operator allowlists (`ADMIN_GOOGLE_SUBS` and the admin host variables) are configured on `Koliath-Technology/website-admin`, not on this service. After a person has signed in, their subject is still `global_users.google_sub` in the shared database.
 
-```sql
-SELECT google_sub, email FROM global_users WHERE email = 'person@example.com';
-```
+## Admin console
 
-Use `google_sub` or the Firebase Auth uid, not the email, in `ADMIN_GOOGLE_SUBS`.
+The admin UI and `/api/admin/*` live on Railway service `website-admin-deploy` at `https://admin.koliath.in/`. This website does not mount those routes and does not treat `Host: admin.koliath.in` as special.
 
-## Admin host
-
-One Railway service serves both hostnames. Add a custom domain `admin.koliath.in` on that service and DNS (CNAME) to the same Railway target as `koliath.in`.
-
-| URL | Behavior |
+| URL | Behavior on this service |
 | --- | --- |
-| `https://admin.koliath.in/` | Canonical admin console. Sign in with Google here. |
-| `https://koliath.in/admin` | 404. The marketing host does not serve the admin SPA or its chunk. |
-| `https://admin.koliath.in/admin` | Redirects to `https://admin.koliath.in/`. |
+| `https://admin.koliath.in/` | Not this service. DNS points at website-admin. |
+| `https://koliath.in/admin` | 302 to `https://admin.koliath.in/`. No admin SPA and no `/assets/admin` chunk. |
+| `/api/admin/*` | 404. |
 
-`/api/admin/*` returns 403 unless the `Host` is `admin.koliath.in` (localhost is added only when `NODE_ENV` is not production). Responses on that host, and all admin API responses, do not allow the `https://koliath.in` origin in CORS. The admin session cookie is `koliath_admin_session` (`__Host-koliath_admin_session` in production): host-only, `SameSite=Strict`, no `Domain`, so it is not sent to the marketing site. The marketing site keeps `koliath_session`.
-
-Also allow `https://admin.koliath.in` as a Google authorized JavaScript origin and a Firebase authorized domain.
+Public session cookies stay `koliath_session` and `koliath_csrf` (`SameSite=Lax`, no `Domain`).
 
 ## Catalog credentials
 
-Boot seeds Sapient, Adverts, Adverts Rewards, Advert Cohort, and Diabetic Buddy as Android apps with stable slugs. They have no owner until you attach one. An allowlisted admin signs in on `https://admin.koliath.in/` and calls `POST /api/developer/apps/:appId/credentials` with that host (or opens `/developer` there). The same call with `Host: koliath.in` is refused. Store the returned secret in the app's backend (Railway variables on that app's service, not this website).
+Boot seeds Sapient, Adverts, Adverts Rewards, Advert Cohort, and Diabetic Buddy as Android apps with stable slugs. They have no owner. This API refuses credential minting for an app the caller does not own, including those catalog rows. Mint the secret from `https://admin.koliath.in/`. Store it in the app's backend (Railway variables on that app's service, not this website). A developer can still register their own app and rotate its secret at `/developer`.
 
 The website only needs the public store URLs (`VITE_DOWNLOAD_*`), which are not secrets. Leave them empty to keep the contact fallback.
 

@@ -268,11 +268,6 @@ export async function authenticateAppSecret(
     }
 }
 
-export function canManageApp(
-    app: { ownerUserId: number | null },
-    userId: number,
-    isAdmin: boolean
-): boolean {
-    if (isAdmin) return true
+export function canManageApp(app: { ownerUserId: number | null }, userId: number): boolean {
     return app.ownerUserId != null && app.ownerUserId === userId
 }

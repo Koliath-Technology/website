@@ -17,7 +17,7 @@ The app secret and the webhook secret are different. Neither belongs in frontend
 }
 ```
 
-The body is strict. `pointsAwarded` and `verificationConfig.requireAttestation` are rejected. A new app is inserted as `pending` with `points_awarded = 0`. It cannot mint a paying download token, and its secret cannot call verify, until an allowlisted admin sets `status` to `active` and a positive `pointsAwarded`. Optional `verificationConfig.tokenTtlSeconds` (60–86400) is the only verification setting a developer may send. The response includes `app.appId` and does not include a secret.
+The body is strict. `pointsAwarded` and `verificationConfig.requireAttestation` are rejected. A new app is inserted as `pending` with `points_awarded = 0`. It cannot mint a paying download token, and its secret cannot call verify, until the admin console at `https://admin.koliath.in/` sets `status` to `active` and a positive `pointsAwarded`. Optional `verificationConfig.tokenTtlSeconds` (60–86400) is the only verification setting a developer may send. The response includes `app.appId` and does not include a secret.
 
 `GET /api/developer/apps` lists your apps with pending, verified, rejected, and reward totals.
 
@@ -38,7 +38,7 @@ The body is strict. `pointsAwarded` and `verificationConfig.requireAttestation` 
 
 The secret is returned once. The database stores `sha256(secret)` and the prefix before the dot. Calling the endpoint again revokes the previous secret.
 
-Catalog apps owned by Koliath have no developer owner. Minting their secret requires an account whose Google provider subject or Firebase Auth uid is in `ADMIN_GOOGLE_SUBS`, and the request `Host` must be the admin host (`admin.koliath.in` in production). The marketing host refuses that call.
+Catalog apps owned by Koliath have no developer owner. This API returns 403 for them. Mint the secret from `https://admin.koliath.in/` (`Koliath-Technology/website-admin`). A signed-in developer can still rotate the secret for an app they own.
 
 Send the secret as `Authorization: Bearer <secret>` or `X-Koliath-App-Secret`.
 

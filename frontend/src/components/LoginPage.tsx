@@ -2,12 +2,10 @@ import { Link } from "react-router-dom"
 import { LogOut } from "lucide-react"
 import { GoogleSignIn } from "./GoogleSignIn"
 import { Button } from "./ui/button"
-import { isDedicatedAdminHost } from "../lib/adminHost"
 import { useAuth } from "../lib/auth"
 
 export default function LoginPage() {
     const { user, signOut } = useAuth()
-    const adminHost = isDedicatedAdminHost()
 
     return (
         <div className="min-h-screen pt-28 px-6 pb-24">
@@ -15,9 +13,7 @@ export default function LoginPage() {
                 <p className="text-sm tracking-[0.2em] uppercase text-[var(--accent)] mb-3">Account</p>
                 <h1 className="font-display text-4xl font-semibold tracking-tight mb-3">Login</h1>
                 <p className="text-[var(--muted)] leading-relaxed mb-8">
-                    {adminHost
-                        ? "Sign in with a Google account listed in ADMIN_GOOGLE_SUBS. An empty list still denies everyone."
-                        : "Sign in with Google to open your Koliath account, referral code, and Earn balance. The same account links Sapient, Adverts, and Diabetic Buddy."}
+                    Sign in with Google to open your Koliath account, referral code, and Earn balance. The same account links Sapient, Adverts, and Diabetic Buddy.
                 </p>
 
                 {user ? (
@@ -28,10 +24,10 @@ export default function LoginPage() {
                         </p>
                         <div className="flex flex-wrap gap-2">
                             <Link
-                                to={adminHost ? "/" : "/earn"}
+                                to="/earn"
                                 className="inline-flex items-center rounded-full bg-[var(--ink)] text-white px-5 py-2.5 text-sm hover:opacity-90"
                             >
-                                {adminHost ? "Open admin" : "Open Earn"}
+                                Open Earn
                             </Link>
                             <Button variant="outline" className="rounded-full" onClick={signOut}>
                                 <LogOut className="w-4 h-4 mr-2" />

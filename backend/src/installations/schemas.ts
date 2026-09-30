@@ -89,28 +89,3 @@ export const registerAppSchema = z
             .optional(),
     })
     .strict()
-
-export const adminRiskSchema = z
-    .object({
-        riskStatus: z.enum(["NORMAL", "REVIEW", "BLOCKED"]).optional(),
-        accountStatus: z.enum(["active", "suspended"]).optional(),
-    })
-    .strict()
-    .refine((value) => value.riskStatus !== undefined || value.accountStatus !== undefined, {
-        message: "riskStatus or accountStatus is required",
-    })
-
-export const adminAppUpdateSchema = z
-    .object({
-        status: z.enum(["pending", "active", "suspended"]).optional(),
-        pointsAwarded: z.number().int().min(0).max(10000).optional(),
-        requireAttestation: z.boolean().optional(),
-    })
-    .strict()
-    .refine(
-        (value) =>
-            value.status !== undefined ||
-            value.pointsAwarded !== undefined ||
-            value.requireAttestation !== undefined,
-        { message: "status, pointsAwarded, or requireAttestation is required" }
-    )

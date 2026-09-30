@@ -35,7 +35,7 @@ States: `DOWNLOAD_STARTED` → `PENDING_VERIFICATION` → `VERIFIED` → `REWARD
 | `fraud_events` | Rule id, severity, and action |
 | `verification_attempts` | Outcome counts for velocity limits |
 
-Catalog slugs seeded for the website: `sapient`, `adverts`, `adverts-rewards`, `advert-cohort`, `diabetic-buddy`. Those rows have no owner. Only an allowlisted admin (Google provider subject or Firebase Auth uid in `ADMIN_GOOGLE_SUBS`) can mint their API secrets, and only from the admin host (`https://admin.koliath.in/`).
+Catalog slugs seeded for the website: `sapient`, `adverts`, `adverts-rewards`, `advert-cohort`, `diabetic-buddy`. Those rows have no owner. This public API refuses to mint their secrets. Operators do that from [https://admin.koliath.in/](https://admin.koliath.in/) (`Koliath-Technology/website-admin`), which shares this Postgres database.
 
 Referral tables (`referral_codes`, `referral_events`, `referral_balances`, qualify webhooks) are separate. Install points are added into the `/api/me` available balance and can be spent by the existing redemption path. The referral qualification rules are not changed.
 
@@ -60,17 +60,17 @@ The older referral click tracker still stores a browser visitor id for referral 
 Play Integrity and Apple App Attest / DeviceCheck are stubs in `backend/src/installations/attestation.ts`. The stub never accepts a token. Attestation is optional by default. Two switches turn it on, and both fail closed while the stub is in place:
 
 - `INSTALL_REQUIRE_ATTESTATION=true` requires it for every app. A per-app `false` does not override this.
-- An admin sets `requireAttestation: true` on one app via `POST /api/admin/verification/apps/:appId`. Developers cannot set this field.
+- An operator sets `requireAttestation: true` on one app from the admin console at `https://admin.koliath.in/`. This website does not expose that route. Developers cannot set this field.
 
 When required and the token is missing or the stub rejects it, verify returns `reason: attestation_required`, writes a fraud event, and does not insert `points_ledger`. Turning the flag on stops rewards for that app until a real verifier replaces the stub.
 
 ## Who can award points
 
-Self-serve registration creates `status = pending` and `points_awarded = 0`. Pending apps cannot start a paying download, and their API secret is rejected as `app_inactive`. Only an `ADMIN_GOOGLE_SUBS` admin can set `active` and a positive point value. Catalog apps (Sapient, Adverts, and the other first-party slugs) are seeded `active` with a preset value; their secrets are still admin-only because they have no owner.
+Self-serve registration creates `status = pending` and `points_awarded = 0`. Pending apps cannot start a paying download, and their API secret is rejected as `app_inactive`. Status and points are set in the admin console (`https://admin.koliath.in/`, repo `Koliath-Technology/website-admin`). Catalog apps (Sapient, Adverts, and the other first-party slugs) are seeded `active` with a preset value; their secrets stay on that console because they have no owner.
 
 ## Fraud
 
-Rules live in `backend/src/fraud/rules.ts`. A single low or medium signal can set `REVIEW` or deny that reward. `BLOCKED` is reserved for the high-severity many-account rule (default: 8 accounts on one app-generated device). Operators can set risk back from the admin API. Nothing here auto-deletes an account.
+Rules live in `backend/src/fraud/rules.ts`. A single low or medium signal can set `REVIEW` or deny that reward. `BLOCKED` is reserved for the high-severity many-account rule (default: 8 accounts on one app-generated device). Operators change risk from the admin console, not from this website. Nothing here auto-deletes an account.
 
 ## Where to read next
 

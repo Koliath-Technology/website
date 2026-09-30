@@ -49,8 +49,8 @@ import {
 } from "./db"
 import { installationRouter } from "./installations/routes"
 import { developerRouter } from "./apps/routes"
-import { adminVerificationRouter } from "./admin/routes"
-import { adminRuntime, createHostSecurity } from "./admin/host"
+import { legacyAdminRedirect, publicCors } from "./publicHttp"
+import { securityHeaders } from "./securityHeaders"
 import { rewardProgram } from "./rewards/program"
 import {
     RewardDenied,
@@ -61,13 +61,11 @@ import {
     rememberBrowserDevice,
 } from "./rewards/service"
 
-const hostSecurity = createHostSecurity(adminRuntime())
-
 const app = express()
 
 app.set("trust proxy", 1)
 
-app.use(hostSecurity.securityHeaders)
+app.use(securityHeaders)
 
 app.use((_req, res, next) => {
     res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
@@ -76,7 +74,7 @@ app.use((_req, res, next) => {
 
 app.use(cookieParser())
 
-app.use(hostSecurity.selectCors)
+app.use(publicCors)
 
 app.use(express.json({ limit: "32kb" }))
 
@@ -524,8 +522,6 @@ app.get("/api/referrals/validate", validateLimiter, async (req, res) => {
 
 app.use("/api/v1/installations", installationRouter)
 app.use("/api/developer", developerRouter)
-app.use("/api/admin", hostSecurity.requireAdminHost, hostSecurity.adminCors)
-app.use("/api/admin/verification", adminVerificationRouter)
 
 app.post("/api/referrals/track", trackingLimiter, async (req, res) => {
     const body = referralTrackingSchema.safeParse(req.body)
@@ -560,7 +556,7 @@ if (!hasFrontend && config.isProd) {
     process.exit(1)
 }
 
-app.use(hostSecurity.adminUiGate)
+app.use(legacyAdminRedirect)
 
 if (hasFrontend) {
     app.use(

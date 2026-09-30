@@ -61,8 +61,8 @@ None. The tree does not contain a production credential, and point-awarding rout
 ### Info
 
 - SQL uses bound parameters. No string-built queries showed up in `backend/src`.
-- CORS is an allowlist with credentials. Missing `Origin` is allowed so non-browser webhooks and same-origin tools still work. Disallowed origins get a generic 403. Admin responses use a separate allowlist (`ADMIN_ORIGIN` / `ADMIN_CORS_ORIGINS`) and reject `https://koliath.in` even if that origin is present in `CORS_ORIGINS`.
-- The admin console is `https://admin.koliath.in/`. `/api/admin/*` fails closed unless `Host` is on the admin allowlist (production default: `admin.koliath.in` only). The marketing host returns 404 for `/admin` and for `/assets/admin/*`. Admin session cookies are host-only `SameSite=Strict` names (`__Host-koliath_admin_session` in production) and are not the marketing `koliath_session` cookie. `ADMIN_GOOGLE_SUBS` still matches a Google subject or a Firebase uid, and an empty list denies everyone.
+- CORS is an allowlist with credentials. Missing `Origin` is allowed so non-browser webhooks and same-origin tools still work. Disallowed origins get a generic 403.
+- The admin console is a separate service at `https://admin.koliath.in/` (`Koliath-Technology/website-admin`). This site does not mount `/api/admin/*` or serve an admin SPA. `GET /admin` redirects to that console. Session cookies are host-only `koliath_session` / `koliath_csrf`. Catalog apps with no owner cannot be managed from this API; credential minting for those apps is on the admin service.
 - The SPA fallback serves `index.html` only for `GET`/`HEAD` routes without a file extension, and it skips `/api` and `/health`. Static files use `dotfiles: "deny"`.
 - `cookie-parser` was already a dependency and is now used for the session.
 - Auth responses send `Cache-Control: no-store`. Profile image URLs are kept only when they are `https` on `googleusercontent.com`.

@@ -1,7 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
 import { onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut } from "firebase/auth"
-import { csrfCookieName } from "./adminHost"
-import { exchangeGoogleToken, fetchMe, logoutSession, type DashboardUser } from "./api"
+import { CSRF_COOKIE_NAME, exchangeGoogleToken, fetchMe, logoutSession, type DashboardUser } from "./api"
 import { readStoredAttribution } from "../hooks/useReferralTracker"
 import { firebaseConfigured, getFirebaseAuth, googleProvider } from "./firebase"
 
@@ -20,8 +19,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 function hasSessionCookie(): boolean {
-    const name = csrfCookieName()
-    return document.cookie.split("; ").some((part) => part.startsWith(`${name}=`))
+    return document.cookie.split("; ").some((part) => part.startsWith(`${CSRF_COOKIE_NAME}=`))
 }
 
 function AuthInner({ children }: { children: React.ReactNode }) {
