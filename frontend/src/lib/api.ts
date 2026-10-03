@@ -88,6 +88,8 @@ export interface DashboardUser {
     pointsEarned: number
     pointsSpent: number
     pointsAvailable: number
+    rewardsUnlocked?: boolean
+    referralsRequired?: number
     totalReferrals: number
     pendingReferrals: number
     confirmedReferrals: number

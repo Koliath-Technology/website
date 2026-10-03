@@ -1,32 +1,5 @@
 import { z } from "zod"
 
-export const careersSchema = z.object({
-    name: z
-        .string()
-        .min(3, { message: "Name must be at least 3 characters long" })
-        .max(30, { message: "Name cannot exceed 30 characters" }),
-    email: z.email({ message: "Please provide a valid email address" }),
-    contact: z.number({ message: "Contact must be a number" }),
-    linkedin: z
-        .string()
-        .trim()
-        .min(5)
-        .max(255)
-        .refine((value) => {
-            try {
-                const url = new URL(value)
-                const host = url.hostname.toLowerCase()
-                return (
-                    url.protocol === "https:" &&
-                    (host === "linkedin.com" || host.endsWith(".linkedin.com"))
-                )
-            } catch {
-                return false
-            }
-        }, { message: "LinkedIn URL must be an https link on linkedin.com" }),
-})
-export type CareersFormData = z.infer<typeof careersSchema>
-
 const sourceAppEnum = z.enum([
     "diabetic",
     "sapient",
@@ -78,18 +51,10 @@ export const linkAppAccountSchema = z.object({
         .optional(),
 })
 
-export const contactInquirySchema = z.object({
-    name: z.string().trim().min(2).max(80),
-    email: z.email(),
-    topic: z.enum(["general", "list-app", "download", "press", "careers"]),
-    message: z.string().trim().min(10).max(2000),
-    app: z.string().trim().max(80).optional(),
-})
-
 export const qualifyReferralSchema = z.object({
     referrerCode: z.string().min(4).max(20).transform((c) => c.toUpperCase()),
     referredEmail: z.string().email(),
     deviceId: z.string().min(5).max(128),
     sourceApp: sourceAppEnum,
-    event: z.enum(["signup", "day_active", "purchase", "install"]),
+    event: z.enum(["signup", "day_active", "purchase", "install", "profile_completed"]),
 })

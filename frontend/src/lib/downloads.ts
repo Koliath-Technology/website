@@ -1,6 +1,6 @@
 /**
  * Optional store links. Leave the env vars empty locally — download buttons
- * then send people to Contact instead of a fake store URL.
+ * say the link is coming instead of opening a contact form.
  * Production builds drop any link that still points at localhost.
  */
 function publicDownloadUrl(value: string | undefined): string | undefined {

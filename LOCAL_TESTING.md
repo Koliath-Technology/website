@@ -27,7 +27,7 @@ Leave the placeholders blank for a UI smoke test. Do not commit `.env` files.
 - Frontend calls same-origin `/api`. Vite proxies that to `http://localhost:3000` in dev only. That proxy is not part of the production bundle.
 - Do not set `VITE_API_BASE=http://localhost:3000` for a production build. Production ignores a localhost API base and uses same-origin `/api`.
 - Google sign-in stays off until the public `VITE_FIREBASE_*` web config is set and the frontend is restarted or rebuilt. The API still rejects tokens until `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, and `FIREBASE_PRIVATE_KEY` are set. Steps are in [SECURITY_AUDIT.md](SECURITY_AUDIT.md).
-- Postgres (`DATABASE_URL`) is only needed for sign-in, rewards, careers, and referral validation. Contact logging and `/health` do not need it.
+- Postgres (`DATABASE_URL`) is only needed for sign-in, rewards, install counts, and referral validation. `/health` does not need it.
 
 ## 3. Run
 
@@ -50,10 +50,13 @@ npm run dev:backend
 | URL | What you should see |
 |-----|---------------------|
 | http://localhost:5173/ | Studio homepage: brochure + app hub, products, Earn |
-| http://localhost:5173/products | App briefs, download / request buttons, “list your app” |
+| http://localhost:5173/products | App briefs, per-app reward rules, download buttons |
 | http://localhost:5173/login | Login. Google button, or setup copy if the public client id is blank |
 | http://localhost:5173/earn | Points and referral UX. Sample gifts if the API is off |
-| http://localhost:5173/contact | Contact form. Without the API, it offers `hello@koliath.in` |
+| http://localhost:5173/contact | Contact is by email. The address is coming. No form |
+| http://localhost:5173/quiz | Short quiz ending on one app |
+| http://localhost:5173/lists | Named shareable app lists |
+| http://localhost:5173/listings | Business listings with install counts |
 | http://localhost:5173/about | About |
 | http://localhost:5173/service | Services |
 | http://localhost:5173/careers | Careers |

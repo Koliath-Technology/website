@@ -18,9 +18,8 @@ import {
     verifyFirebaseIdToken,
 } from "./auth"
 import { firebaseCredentialStatus } from "./firebaseCredentials"
-import { listPublicRules } from "./rules"
+import { listPublicRules, REFERRALS_REQUIRED, REWARD_GATE_COPY } from "./rules"
 import {
-    careersSchema,
     referralStatsQuerySchema,
     redeemRewardSchema,
     referralEventSchema,
@@ -29,10 +28,8 @@ import {
     googleSessionSchema,
     linkAppAccountSchema,
     qualifyReferralSchema,
-    contactInquirySchema,
 } from "./types/types"
 import {
-    createCareer,
     getReferralStats,
     getAllRewards,
     createRedemption,
@@ -46,6 +43,8 @@ import {
     linkAppAccount,
     userOwnsCode,
     qualifyReferral,
+    getHubSnapshot,
+    recordInstall,
 } from "./db"
 
 const app = express()
@@ -146,19 +145,36 @@ app.get("/health", health)
 app.get("/api/health", health)
 
 app.get("/api/referral-rules", (_req, res) => {
-    res.status(200).json({ rules: listPublicRules() })
+    res.status(200).json({
+        referralsRequired: REFERRALS_REQUIRED,
+        rewardGate: REWARD_GATE_COPY,
+        rules: listPublicRules(),
+    })
 })
 
-const contactLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 20,
-    message: { success: false, message: "Too many contact requests" },
+app.get("/api/hub", async (_req, res) => {
+    try {
+        const hub = await getHubSnapshot()
+        res.status(200).json({ rewardGate: REWARD_GATE_COPY, ...hub })
+    } catch (e) {
+        logError("request failed", e)
+        res.status(500).json({ success: false, message: "Failed to load app stats" })
+    }
 })
 
-const careerLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 8,
-    message: { success: false, message: "Too many applications" },
+app.post("/api/hub/installs", trackingLimiter, async (req, res) => {
+    const slug = typeof req.body?.slug === "string" ? req.body.slug : ""
+    try {
+        const hub = await recordInstall(slug)
+        res.status(200).json({ rewardGate: REWARD_GATE_COPY, ...hub })
+    } catch (e: unknown) {
+        const err = e as { status?: number }
+        if (err.status === 400) {
+            return invalidRequest(res)
+        }
+        logError("request failed", e)
+        res.status(500).json({ success: false, message: "Failed to record install" })
+    }
 })
 
 const webhookLimiter = rateLimit({
@@ -182,56 +198,6 @@ const redeemLimiter = rateLimit({
 function invalidRequest(res: express.Response) {
     return res.status(400).json({ success: false, message: "Invalid request" })
 }
-
-/**
- * Accepts brochure / hub inquiries without a mailbox integration.
- * The process log is the dev inbox. Production should tail these logs or
- * forward them until an email provider is configured — no secrets required.
- */
-app.post("/api/contact", contactLimiter, (req, res) => {
-    const body = contactInquirySchema.safeParse(req.body)
-    if (!body.success) {
-        return res.status(400).json({ success: false, message: "Check the form and try again." })
-    }
-
-    console.log(
-        JSON.stringify({
-            type: "contact_inquiry",
-            at: new Date().toISOString(),
-            ...body.data,
-        })
-    )
-
-    res.status(202).json({
-        success: true,
-        message: "Received. We will reply by email.",
-    })
-})
-
-async function submitCareer(req: express.Request, res: express.Response) {
-    const body = careersSchema.safeParse(req.body)
-    if (!body.success) {
-        return invalidRequest(res)
-    }
-
-    const { name, email, contact, linkedin } = body.data
-    try {
-        await createCareer({ name, email, contact, linkedin })
-    } catch {
-        return res.status(500).json({
-            success: false,
-            message: "Application already exists or database unavailable",
-        })
-    }
-
-    res.status(200).json({
-        success: true,
-        message: "Career application received successfully",
-    })
-}
-
-app.post("/careers", careerLimiter, submitCareer)
-app.post("/api/careers", careerLimiter, submitCareer)
 
 /** Exchange a Firebase ID token (Google sign-in) for a browser session cookie. */
 async function establishSession(req: express.Request, res: express.Response) {
@@ -399,7 +365,7 @@ app.post("/api/referrals/redeem", redeemLimiter, requireAuth, async (req, res) =
     } catch (e: unknown) {
         logError("request failed", e)
         const err = e as { status?: number; message?: string }
-        if (err.status === 404 || err.status === 400) {
+        if (err.status === 404 || err.status === 400 || err.status === 403) {
             return res.status(err.status).json({ success: false, message: err.message })
         }
         res.status(500).json({ success: false, message: "Internal server error" })
@@ -444,7 +410,7 @@ app.post("/api/referrals/event", webhookLimiter, requireAppWebhook, async (req, 
     }
 })
 
-/** Trusted qualification webhook — Sapient day_active, Adverts purchase, etc. */
+/** Trusted qualification webhook — Sapient profile_completed, Adverts purchase, etc. */
 app.post("/api/referrals/qualify", webhookLimiter, requireAppWebhook, async (req, res) => {
     const body = qualifyReferralSchema.safeParse(req.body)
     if (!body.success) {

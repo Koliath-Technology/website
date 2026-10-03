@@ -10,6 +10,9 @@ const Navbar: React.FC = () => {
     const sections = [
         { name: "Products", path: "/products" },
         { name: "Earn", path: "/earn" },
+        { name: "Lists", path: "/lists" },
+        { name: "Quiz", path: "/quiz" },
+        { name: "Listings", path: "/listings" },
         { name: "Services", path: "/service" },
         { name: "About", path: "/about" },
         { name: "Careers", path: "/careers" },
@@ -27,13 +30,13 @@ const Navbar: React.FC = () => {
                     Koliath
                 </Link>
 
-                <nav className="hidden lg:flex items-center gap-1">
+                <nav className="hidden xl:flex items-center gap-0.5">
                     {sections.map((section) => (
                         <NavLink
                             key={section.name}
                             to={section.path}
                             className={({ isActive }) =>
-                                `px-3.5 py-2 text-sm transition-colors rounded-full ${
+                                `px-2.5 py-2 text-sm transition-colors rounded-full ${
                                     isActive
                                         ? "text-[var(--ink)] bg-black/[0.04]"
                                         : "text-[var(--ink)] hover:opacity-70"
@@ -67,17 +70,11 @@ const Navbar: React.FC = () => {
                             Login
                         </Link>
                     )}
-                    <Link
-                        to="/contact?topic=list-app"
-                        className="ml-2 text-sm px-4 py-2 rounded-full bg-[var(--ink)] text-white hover:opacity-90 transition-opacity whitespace-nowrap"
-                    >
-                        List your app
-                    </Link>
                 </nav>
 
                 <button
                     type="button"
-                    className="lg:hidden p-2 text-[var(--ink)]"
+                    className="xl:hidden p-2 text-[var(--ink)]"
                     aria-label="Menu"
                     onClick={() => setOpen((v) => !v)}
                 >
@@ -93,7 +90,7 @@ const Navbar: React.FC = () => {
             </div>
 
             {open && (
-                <div className="lg:hidden border-t border-[var(--line)] bg-[var(--bg)] px-6 py-4 space-y-1">
+                <div className="xl:hidden border-t border-[var(--line)] bg-[var(--bg)] px-6 py-4 space-y-1">
                     {sections.map((section) => (
                         <NavLink
                             key={section.name}
@@ -137,13 +134,6 @@ const Navbar: React.FC = () => {
                             Login
                         </Link>
                     )}
-                    <Link
-                        to="/contact?topic=list-app"
-                        onClick={() => setOpen(false)}
-                        className="block px-3 py-3 rounded-xl text-sm bg-[var(--ink)] text-white text-center"
-                    >
-                        List your app
-                    </Link>
                 </div>
             )}
         </header>

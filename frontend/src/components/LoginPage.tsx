@@ -13,8 +13,10 @@ export default function LoginPage() {
                 <p className="text-sm tracking-[0.2em] uppercase text-[var(--accent)] mb-3">Account</p>
                 <h1 className="font-display text-4xl font-semibold tracking-tight mb-3">Login</h1>
                 <p className="text-[var(--muted)] leading-relaxed mb-8">
-                    Sign in with Google to open your Koliath account, referral code, and Earn
-                    balance. The same account links Sapient, Adverts, and Diabetic Buddy.
+                    You can browse and download apps without an account. Sign in only to see your
+                    points or to get a referral link. You get no reward points until you have three
+                    referrals. Sapient points are awarded only when that person completes their
+                    profile, and only if you already have three referrals.
                 </p>
 
                 {user ? (

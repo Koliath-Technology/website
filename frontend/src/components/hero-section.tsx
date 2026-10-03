@@ -43,8 +43,9 @@ export function HeroSection() {
                     transition={{ duration: 0.5, delay: 0.14 }}
                     className="text-base md:text-lg text-[var(--muted)] max-w-lg mb-10 leading-relaxed"
                 >
-                    Read about Koliath, then download Sapient, Adverts, and Diabetic Buddy.
-                    Share a link from Earn — points confirm when the person you refer qualifies.
+                    Browse and download Sapient, Adverts, and Diabetic Buddy without an account.
+                    Sign in only for points or a referral link. You get no reward points until you
+                    have three referrals, and each app has its own use check.
                 </motion.p>
 
                 <motion.div

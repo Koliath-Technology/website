@@ -18,12 +18,12 @@ import { Button } from "./ui/button"
 import { GoogleSignIn } from "./GoogleSignIn"
 import { useAuth } from "../lib/auth"
 import {
-    fetchReferralRules,
     fetchRewards,
     redeemReward,
-    type ReferralRule,
     type Reward,
 } from "../lib/api"
+import { CATALOG, REFERRALS_REQUIRED } from "../lib/catalog"
+import { AppRewardFacts, RewardGateNote } from "./RewardFacts"
 import { useReferralTracker } from "../hooks/useReferralTracker"
 
 const PREVIEW_REWARDS: Reward[] = [
@@ -35,7 +35,6 @@ const PREVIEW_REWARDS: Reward[] = [
 export default function RewardPage() {
     const { user, signOut, refresh } = useAuth()
     const [rewards, setRewards] = useState<Reward[]>([])
-    const [rules, setRules] = useState<ReferralRule[]>([])
     const [loadingRewards, setLoadingRewards] = useState(true)
     const [redeemingId, setRedeemingId] = useState<number | null>(null)
     const [redeemError, setRedeemError] = useState<string | null>(null)
@@ -45,9 +44,8 @@ export default function RewardPage() {
     const { refCode } = useReferralTracker()
 
     useEffect(() => {
-        Promise.all([fetchRewards(), fetchReferralRules()])
-            .then(([rewardList, ruleList]) => {
-                setRules(ruleList)
+        fetchRewards()
+            .then((rewardList) => {
                 if (rewardList.length === 0) {
                     setRewards(PREVIEW_REWARDS)
                     setCatalogNote(
@@ -125,10 +123,10 @@ export default function RewardPage() {
                         transition={{ delay: 0.1 }}
                         className="text-lg text-[var(--muted)] max-w-2xl mx-auto mb-10 leading-relaxed"
                     >
-                        Sign in with Google. Share your code. Earn separately when friends
-                        qualify in Sapient, Adverts, Diabetic Buddy, and more — under clear
-                        per-app rules.
+                        Sign in only for points or a referral link. Browse and download without
+                        an account. Each app pays for its own use check.
                     </motion.p>
+                    <RewardGateNote className="text-base text-[var(--ink)] max-w-xl mx-auto mb-8" />
 
                     {refCode && !user && (
                         <p className="text-sm mb-6 rounded-2xl border border-[var(--line)] bg-white/70 px-4 py-3 inline-block">
@@ -205,6 +203,14 @@ export default function RewardPage() {
                                     Use the same Google account in each Koliath app to link
                                     rewards automatically.
                                 </p>
+                                {(user.rewardsUnlocked === false ||
+                                    (user.rewardsUnlocked === undefined &&
+                                        user.totalReferrals < REFERRALS_REQUIRED)) && (
+                                    <p className="text-sm text-[var(--ink)] mt-3">
+                                        Rewards stay locked. You have {user.totalReferrals} of{" "}
+                                        {user.referralsRequired ?? REFERRALS_REQUIRED} referrals.
+                                    </p>
+                                )}
                             </div>
 
                             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -294,52 +300,22 @@ export default function RewardPage() {
                             Referral guidelines
                         </h2>
                         <p className="text-[var(--muted)] max-w-2xl mx-auto">
-                            Points are earned per app, only when the referred person meets that
-                            product&apos;s rule — never for a bare install alone.
+                            Each app has its own use check. A download by itself does not pay.
                         </p>
+                        <RewardGateNote className="text-sm text-[var(--ink)] max-w-2xl mx-auto mt-3" />
                     </div>
                     <div className="grid md:grid-cols-2 gap-6">
-                        {(rules.length
-                            ? rules
-                            : [
-                                  {
-                                      app: "sapient",
-                                      label: "Sapient",
-                                      description:
-                                          "Download + one full day of genuine use (24 hours).",
-                                      confirmOn: "day_active",
-                                      points: 100,
-                                  },
-                                  {
-                                      app: "adverts",
-                                      label: "Adverts",
-                                      description:
-                                          "Download + successful purchase (purchase wiring coming soon).",
-                                      confirmOn: "purchase",
-                                      points: 100,
-                                  },
-                              ]
-                        ).map((rule, i) => (
+                        {CATALOG.map((app, i) => (
                             <motion.div
-                                key={rule.app}
+                                key={app.slug}
                                 initial={{ opacity: 0, y: 16 }}
                                 whileInView={{ opacity: 1, y: 0 }}
                                 viewport={{ once: true }}
                                 transition={{ delay: i * 0.05 }}
                                 className="rounded-3xl border border-[var(--line)] bg-white/90 p-7"
                             >
-                                <div className="flex items-start justify-between gap-3 mb-3">
-                                    <h3 className="text-xl font-semibold">{rule.label}</h3>
-                                    <span className="text-xs font-mono px-2.5 py-1 rounded-full bg-[var(--surface)] text-[var(--muted)]">
-                                        {rule.confirmOn}
-                                    </span>
-                                </div>
-                                <p className="text-[var(--muted)] leading-relaxed mb-4">
-                                    {rule.description}
-                                </p>
-                                <p className="text-sm font-medium text-[var(--accent)]">
-                                    +{rule.points} points when confirmed
-                                </p>
+                                <h3 className="text-xl font-semibold mb-3">{app.name}</h3>
+                                <AppRewardFacts slug={app.slug} />
                             </motion.div>
                         ))}
                     </div>
@@ -367,8 +343,16 @@ export default function RewardPage() {
                         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {rewards.map((reward, i) => {
                                 const preview = reward.id < 0
+                                const locked =
+                                    !!user &&
+                                    (user.rewardsUnlocked === false ||
+                                        (user.rewardsUnlocked === undefined &&
+                                            user.totalReferrals < REFERRALS_REQUIRED))
                                 const canRedeem =
-                                    !!user && !preview && user.pointsAvailable >= reward.points_cost
+                                    !!user &&
+                                    !preview &&
+                                    !locked &&
+                                    user.pointsAvailable >= reward.points_cost
                                 return (
                                     <motion.div
                                         key={reward.id}
@@ -399,6 +383,8 @@ export default function RewardPage() {
                                             >
                                                 {redeemingId === reward.id ? (
                                                     <Loader2 className="w-4 h-4 animate-spin" />
+                                                ) : locked ? (
+                                                    "Locked"
                                                 ) : canRedeem ? (
                                                     "Redeem"
                                                 ) : reward.id < 0 ? (
@@ -432,12 +418,12 @@ export default function RewardPage() {
                             {
                                 step: "02",
                                 title: "Share per app",
-                                text: "Friends use your code when they join Sapient, Adverts, Diabetic Buddy, or other Koliath apps.",
+                                text: "Friends use your code when they join an app. You can share without asking them to make an account on this site.",
                             },
                             {
                                 step: "03",
                                 title: "Qualify & redeem",
-                                text: "Points unlock only after each app’s rule is met. Redeem here for gift cards.",
+                                text: "You get no reward points until you have three referrals. Before that, rewards stay locked. Sapient points are awarded only when the profile is completed, and only if you already have three referrals.",
                             },
                         ].map((item) => (
                             <div

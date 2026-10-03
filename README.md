@@ -16,7 +16,10 @@ Adverts Rewards, and Diabetic Buddy.
 | `/` | Company homepage and app hub |
 | `/products` | App briefs, download CTAs, list-your-app |
 | `/earn` | Referral points, Google login, gift catalog |
-| `/contact` | Contact form and list/host-your-app CTA |
+| `/contact` | Email-only note. The address is not published yet |
+| `/quiz` | Short quiz that ends on one app, with a referrer code when the visit has one |
+| `/lists` | Named shareable app lists |
+| `/listings` | Business listings with the shared install count |
 | `/service`, `/about`, `/careers`, `/blog` | Studio pages |
 
 `/reward`, `/rewards`, and `/referrals` redirect to `/earn` and keep `?ref=` query strings.
@@ -27,11 +30,13 @@ Local commands and the production SPA fallback are in [LOCAL_TESTING.md](LOCAL_T
 
 | App | Points confirm when |
 |-----|---------------------|
-| Sapient | Referred user is active for one full day (`day_active`) |
-| Adverts | Successful purchase (`purchase` — webhook ready, app wiring later) |
-| Diabetic Buddy | Signup / first onboarding (`signup`) |
-| Adverts Rewards | First verified watch day |
-| Advert Cohort | Profile + rate card activity |
+| Sapient | Profile completed (`profile_completed`), and only if the referrer already has three referrals |
+| Adverts | Successful purchase (`purchase`), and only if the referrer already has three referrals |
+| Diabetic Buddy | Signup / first onboarding (`signup`), and only if the referrer already has three referrals |
+| Adverts Rewards | First verified watch session, and only if the referrer already has three referrals |
+| Advert Cohort | Profile + rate card, and only if the referrer already has three referrals |
+
+Rewards stay locked until the referrer has three referrals. Points are not added before that gate is already met.
 
 Apps post qualification events to:
 

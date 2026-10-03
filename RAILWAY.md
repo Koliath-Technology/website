@@ -34,7 +34,6 @@ Set these on the Railway service before the first deploy. Railway exposes them t
 | `APP_WEBHOOK_SECRET` | A long random string you generate and store in Railway. Not in git. |
 | `CORS_ORIGINS` | `https://koliath.in,https://www.koliath.in` |
 | `VITE_API_BASE` | Leave unset. The browser calls same-origin `/api`. |
-| `VITE_CONTACT_EMAIL` | Optional. Defaults to `hello@koliath.in`. |
 
 `PORT` is set by Railway. Do not hardcode it.
 
