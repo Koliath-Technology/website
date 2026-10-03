@@ -1,49 +1,47 @@
-import { Link } from "react-router-dom"
+import { useEffect } from "react"
+import { Link, useNavigate } from "react-router-dom"
 import { motion } from "framer-motion"
 import { ArrowRight } from "lucide-react"
+import { Button } from "./ui/button"
+import { useReferralTracker } from "../hooks/useReferralTracker"
+import { downloadUrls, withReferral } from "../lib/downloads"
+import { CATALOG, type AppSlug } from "../lib/catalog"
+import { recordInstall } from "../lib/hubStats"
+import { AppRewardFacts, RewardGateNote } from "./RewardFacts"
 
-const products = [
-    {
-        slug: "sapient",
-        name: "Sapient",
-        tag: "Dating",
-        blurb: "India-focused dating ranked by how people think — prompts, sparks, and compatibility before photos.",
-        accent: "#0f766e",
-        href: "/products#sapient",
+const details: Record<
+    AppSlug,
+    { headline: string; body: string; points: string[] }
+> = {
+    sapient: {
+        headline: "Dating for how you think",
+        body: "Photo-first apps optimise for the swipe. Sapient leads with mindprint — prompts, sparks, and Elo-aware compatibility — then reveals photos after a conversation starts.",
+        points: [
+            "Compatibility breakdowns, not vanity scores",
+            "Salons, Think Dates, Book Swap, Icebreakers",
+        ],
     },
-    {
-        slug: "adverts",
-        name: "Adverts",
-        tag: "Brand ads",
-        blurb: "Quick-commerce AI ads with licensed talent likeness — brief, generate, license, and book campaigns.",
-        accent: "#b45309",
-        href: "/products#adverts",
+    adverts: {
+        headline: "AI ads with licensed likeness",
+        body: "Brands brief campaigns, generate creative with talent likeness, and book delivery across channels — with payments and rewards wired through Koliath.",
+        points: ["Brand app + talent cohort + viewer rewards", "Razorpay orders and campaign delivery APIs"],
     },
-    {
-        slug: "adverts-rewards",
-        name: "Adverts Rewards",
-        tag: "Viewer",
-        blurb: "Watch verified creative, earn points, and redeem value — the consumer loop for Adverts campaigns.",
-        accent: "#0369a1",
-        href: "/products#adverts-rewards",
+    "adverts-rewards": {
+        headline: "Watch. Earn. Redeem.",
+        body: "The viewer loop for Adverts: verified watches credit a ledger users can redeem — kept separate from brand and talent surfaces for security.",
+        points: ["Verified watch tickets", "Points ledger", "INR estimate & redeem gates"],
     },
-    {
-        slug: "advert-cohort",
-        name: "Advert Cohort",
-        tag: "Talent",
-        blurb: "Talent portal to approve likeness requests, set rate cards, and track earnings.",
-        accent: "#7c3aed",
-        href: "/products#advert-cohort",
+    "advert-cohort": {
+        headline: "Talent control of likeness",
+        body: "Approve or decline brand requests, set still/video/campaign rates, pause inbound work, and track paid vs pipeline earnings.",
+        points: ["Request inbox", "Rate cards", "Earnings visibility"],
     },
-    {
-        slug: "diabetic-buddy",
-        name: "Diabetic Buddy",
-        tag: "Health",
-        blurb: "Gamified diabetes self-management with on-device glucose forecasting and a companion that levels up with you.",
-        accent: "#be123c",
-        href: "/diabetic-app",
+    "diabetic-buddy": {
+        headline: "Logging that sticks",
+        body: "Glucose, insulin, food, and activity wrapped in a companion loop. Forecasts run on-device — health data never leaves for third-party inference.",
+        points: ["On-device forecasting", "Pet leveling & streaks", "Shared Koliath referral backend"],
     },
-]
+}
 
 export function ProductsShowcase({ compact = false }: { compact?: boolean }) {
     return (
@@ -56,14 +54,15 @@ export function ProductsShowcase({ compact = false }: { compact?: boolean }) {
                     <h2 className="font-display text-3xl md:text-5xl font-semibold tracking-tight text-[var(--ink)] mb-4">
                         Products shipping from Koliath
                     </h2>
-                    <p className="text-lg text-[var(--muted)] leading-relaxed">
-                        Consumer apps and B2B tools bound by one identity and one rewards
-                        platform at koliath.in/reward.
+                    <p className="text-lg text-[var(--muted)] leading-relaxed mb-3">
+                        Browse and download without an account. A referral code on the link stays
+                        with the visit. Sign in only for points or a referral link.
                     </p>
+                    <RewardGateNote className="text-sm text-[var(--ink)]" />
                 </div>
 
                 <div className="grid md:grid-cols-2 gap-5">
-                    {products.map((p, i) => (
+                    {CATALOG.map((p, i) => (
                         <motion.div
                             key={p.slug}
                             initial={{ opacity: 0, y: 20 }}
@@ -93,7 +92,8 @@ export function ProductsShowcase({ compact = false }: { compact?: boolean }) {
                                 <h3 className="font-display text-2xl font-semibold mb-3 text-[var(--ink)]">
                                     {p.name}
                                 </h3>
-                                <p className="text-[var(--muted)] leading-relaxed">{p.blurb}</p>
+                                <p className="text-[var(--muted)] leading-relaxed mb-4">{p.blurb}</p>
+                                <AppRewardFacts slug={p.slug} />
                             </Link>
                         </motion.div>
                     ))}
@@ -104,59 +104,91 @@ export function ProductsShowcase({ compact = false }: { compact?: boolean }) {
 }
 
 export default function ProductsPage() {
+    const navigate = useNavigate()
+    const { refCode, trackEvent } = useReferralTracker()
+
+    useEffect(() => {
+        const id = window.location.hash.replace("#", "")
+        if (!id) return
+        document.getElementById(id)?.scrollIntoView()
+    }, [])
+
+    const onDownload = (slug: AppSlug) => {
+        const external = downloadUrls[slug]
+        if (!external && slug === "diabetic-buddy") {
+            const search = refCode ? `?ref=${encodeURIComponent(refCode)}` : ""
+            navigate(`/diabetic-app${search}`)
+            return
+        }
+        if (!external) return
+        void trackEvent("install_attempt")
+        void recordInstall(slug)
+        const href = withReferral(external, refCode)
+        if (href) window.open(href, "_blank", "noopener,noreferrer")
+    }
+
     return (
         <div className="min-h-screen pt-20">
             <ProductsShowcase />
 
-            <section className="px-6 pb-24" id="sapient">
+            {refCode && (
+                <div className="px-6 -mt-6 mb-4">
+                    <p className="max-w-6xl mx-auto text-sm rounded-2xl border border-[var(--line)] bg-[var(--accent-soft)] px-5 py-3 text-[var(--ink)]">
+                        Referral code <span className="font-mono font-semibold">{refCode}</span> is
+                        saved for this visit. Download buttons attribute the install to it. No
+                        account is required.
+                    </p>
+                </div>
+            )}
+
+            <section className="px-6 pb-8">
                 <div className="max-w-6xl mx-auto space-y-16">
-                    <ProductDeepDive
-                        id="sapient"
-                        name="Sapient"
-                        headline="Dating for how you think"
-                        body="Photo-first apps optimise for the swipe. Sapient leads with mindprint — prompts, sparks, and Elo-aware compatibility — then reveals photos after a conversation starts."
-                        points={[
-                            "Compatibility breakdowns, not vanity scores",
-                            "Salons, Think Dates, Book Swap, Icebreakers",
-                            "Referral rewards after one full day of use",
-                        ]}
-                    />
-                    <ProductDeepDive
-                        id="adverts"
-                        name="Adverts"
-                        headline="AI ads with licensed likeness"
-                        body="Brands brief campaigns, generate creative with talent likeness, and book delivery across channels — with payments and rewards wired through Koliath."
-                        points={[
-                            "Brand app + talent cohort + viewer rewards",
-                            "Razorpay orders and campaign delivery APIs",
-                            "Referral rewards after a successful purchase",
-                        ]}
-                    />
-                    <ProductDeepDive
-                        id="adverts-rewards"
-                        name="Adverts Rewards"
-                        headline="Watch. Earn. Redeem."
-                        body="The viewer loop for Adverts: verified watches credit a ledger users can redeem — kept separate from brand and talent surfaces for security."
-                        points={["Verified watch tickets", "Points ledger", "INR estimate & redeem gates"]}
-                    />
-                    <ProductDeepDive
-                        id="advert-cohort"
-                        name="Advert Cohort"
-                        headline="Talent control of likeness"
-                        body="Approve or decline brand requests, set still/video/campaign rates, pause inbound work, and track paid vs pipeline earnings."
-                        points={["Request inbox", "Rate cards", "Earnings visibility"]}
-                    />
-                    <ProductDeepDive
-                        id="diabetic-buddy"
-                        name="Diabetic Buddy"
-                        headline="Logging that sticks"
-                        body="Glucose, insulin, food, and activity wrapped in a companion loop. Forecasts run on-device — health data never leaves for third-party inference."
-                        points={[
-                            "On-device forecasting",
-                            "Pet leveling & streaks",
-                            "Shared Koliath referral backend",
-                        ]}
-                    />
+                    {CATALOG.map((app) => {
+                        const detail = details[app.slug]
+                        const external = downloadUrls[app.slug]
+                        const downloadReady = Boolean(external) || app.slug === "diabetic-buddy"
+                        return (
+                            <ProductDeepDive
+                                key={app.slug}
+                                id={app.slug}
+                                name={app.name}
+                                headline={detail.headline}
+                                body={detail.body}
+                                points={detail.points}
+                                slug={app.slug}
+                                downloadLabel={
+                                    external
+                                        ? `Download ${app.name}`
+                                        : app.slug === "diabetic-buddy"
+                                          ? "Download Diabetic Buddy"
+                                          : "Download link coming"
+                                }
+                                downloadReady={downloadReady}
+                                onDownload={() => onDownload(app.slug)}
+                            />
+                        )
+                    })}
+                </div>
+            </section>
+
+            <section className="px-6 pb-24">
+                <div className="max-w-6xl mx-auto rounded-[2rem] border border-[var(--line)] bg-white/80 p-8 md:p-12">
+                    <p className="text-sm tracking-[0.18em] uppercase text-[var(--accent)] mb-3">
+                        For businesses
+                    </p>
+                    <h2 className="font-display text-3xl md:text-4xl font-semibold mb-4">
+                        Listings and installs
+                    </h2>
+                    <p className="text-[var(--muted)] leading-relaxed max-w-2xl mb-3">
+                        Each app already on the hub has a listing with its install count. The count
+                        matches the product page and Earn.
+                    </p>
+                    <p className="text-sm text-[var(--muted)] mb-6">
+                        Contact is by email. The address is coming.
+                    </p>
+                    <Button asChild className="rounded-full px-6 h-11">
+                        <Link to="/listings">See listings</Link>
+                    </Button>
                 </div>
             </section>
         </div>
@@ -169,12 +201,20 @@ function ProductDeepDive({
     headline,
     body,
     points,
+    slug,
+    downloadLabel,
+    downloadReady,
+    onDownload,
 }: {
     id: string
     name: string
     headline: string
     body: string
     points: string[]
+    slug: AppSlug
+    downloadLabel: string
+    downloadReady: boolean
+    onDownload: () => void
 }) {
     return (
         <div id={id} className="scroll-mt-28 grid md:grid-cols-2 gap-10 items-start border-t border-[var(--line)] pt-14">
@@ -182,6 +222,22 @@ function ProductDeepDive({
                 <p className="text-sm text-[var(--accent)] mb-2">{name}</p>
                 <h3 className="font-display text-3xl md:text-4xl font-semibold mb-4">{headline}</h3>
                 <p className="text-[var(--muted)] leading-relaxed text-lg">{body}</p>
+                <div className="mt-6 rounded-2xl border border-[var(--line)] bg-white/80 px-5 py-4">
+                    <AppRewardFacts slug={slug} />
+                </div>
+                <div className="mt-6 flex flex-wrap gap-3">
+                    <Button
+                        type="button"
+                        className="rounded-full px-6"
+                        disabled={!downloadReady}
+                        onClick={onDownload}
+                    >
+                        {downloadLabel}
+                    </Button>
+                    <Button asChild variant="outline" className="rounded-full px-6">
+                        <Link to="/earn">Refer and earn</Link>
+                    </Button>
+                </div>
             </div>
             <ul className="space-y-3">
                 {points.map((point) => (

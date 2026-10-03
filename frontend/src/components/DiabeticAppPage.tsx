@@ -3,6 +3,8 @@ import { Button } from "./ui/button"
 import { Shield, Zap, Activity, Brain, Smartphone, Database } from "lucide-react"
 import { useReferralTracker } from "../hooks/useReferralTracker"
 import { handleAppDownload } from "../lib/deepLinking"
+import { recordInstall } from "../lib/hubStats"
+import { AppRewardFacts, RewardGateNote } from "./RewardFacts"
 
 const features = [
     {
@@ -32,6 +34,7 @@ export default function DiabeticAppPage() {
 
     const onDownloadClick = () => {
         trackEvent('install_attempt');
+        void recordInstall("diabetic-buddy");
         handleAppDownload(refCode);
     };
 
@@ -60,9 +63,13 @@ export default function DiabeticAppPage() {
                                 Predictive Intelligence
                             </span>
                         </h1>
-                        <p className="text-xl text-slate-400 mb-8 max-w-xl leading-relaxed">
+                        <p className="text-xl text-slate-400 mb-6 max-w-xl leading-relaxed">
                             The world's first clinical-grade, probabilistic glucose prediction engine for your smartphone. Move beyond heuristics with Bayesian learning.
                         </p>
+                        <div className="mb-6 max-w-xl space-y-3">
+                            <RewardGateNote className="text-sm text-slate-200" />
+                            <AppRewardFacts slug="diabetic-buddy" tone="dark" />
+                        </div>
                         <div className="flex flex-wrap gap-4">
                             <Button size="lg" onClick={onDownloadClick} className="bg-blue-600 hover:bg-blue-700 text-white rounded-full px-8">
                                 Download App

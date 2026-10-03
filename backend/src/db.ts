@@ -1,16 +1,24 @@
 import { randomBytes } from "crypto"
-import { Pool } from "pg"
-import { z } from "zod"
-import { careersSchema } from "./types/types"
-import { config, POINTS_PER_REFERRAL } from "./config"
-import { getRule, isSourceApp, type SourceApp, type QualificationEvent } from "./rules"
-import type { AuthUser } from "./auth"
-
-export type Career = z.infer<typeof careersSchema>
+import { Pool, type PoolClient } from "pg"
+import { config } from "./config"
+import { databasePoolConfig } from "./pgSsl"
+import { logError } from "./redact"
+import {
+    getRule,
+    isPublicSlug,
+    isSourceApp,
+    listPublicRules,
+    pointsForQualifyingEvent,
+    REFERRALS_REQUIRED,
+    rewardsUnlocked,
+    spendablePoints,
+    type SourceApp,
+    type QualificationEvent,
+} from "./rules"
+import { safePictureUrl, type AuthUser } from "./auth"
 
 const pool = new Pool({
-    connectionString: config.databaseUrl,
-    ssl: config.isProd ? { rejectUnauthorized: true } : undefined,
+    ...databasePoolConfig(config.databaseUrl, config.databaseSslRejectUnauthorized),
     max: 10,
 })
 
@@ -155,6 +163,23 @@ async function createTable() {
         `)
 
         await pool.query(`
+            CREATE TABLE IF NOT EXISTS app_metrics (
+                slug VARCHAR(64) PRIMARY KEY,
+                installs INT NOT NULL DEFAULT 0
+            );
+        `)
+
+        await pool.query(`
+            INSERT INTO app_metrics (slug, installs) VALUES
+                ('sapient', 0),
+                ('adverts', 0),
+                ('adverts-rewards', 0),
+                ('advert-cohort', 0),
+                ('diabetic-buddy', 0)
+            ON CONFLICT (slug) DO NOTHING;
+        `)
+
+        await pool.query(`
             INSERT INTO referral_rewards (title, required_referrals, points_cost, category) VALUES
                 ('$10 Amazon Voucher', 0, 500, 'Shopping'),
                 ('$25 Amazon Voucher', 0, 1200, 'Shopping'),
@@ -168,19 +193,44 @@ async function createTable() {
 
         console.log("Tables ready")
     } catch (e) {
-        console.error("Error creating tables:", e)
+        logError("Error creating tables", e)
     }
 }
 void createTable()
 
-export async function createCareer(data: Career) {
-    const validated = careersSchema.parse(data)
-    const result = await pool.query(
-        `INSERT INTO careers (name, email, contact, linkedin)
-         VALUES ($1, $2, $3, $4) RETURNING *`,
-        [validated.name, validated.email, validated.contact, validated.linkedin]
+async function referralCount(client: Pool | PoolClient, referrerCode: string): Promise<number> {
+    const result = await client.query(
+        `SELECT COUNT(*)::int AS count FROM referral_events WHERE referrer_code = $1`,
+        [referrerCode]
     )
-    return result.rows[0]
+    return parseInt(result.rows[0]?.count, 10) || 0
+}
+
+export async function getHubSnapshot() {
+    const metrics = await pool.query(`SELECT slug, installs FROM app_metrics`)
+    const installs = new Map<string, number>()
+    for (const row of metrics.rows) {
+        installs.set(row.slug, parseInt(row.installs, 10) || 0)
+    }
+    return {
+        referralsRequired: REFERRALS_REQUIRED,
+        apps: listPublicRules().map((rule) => ({
+            ...rule,
+            installs: installs.get(rule.slug) ?? 0,
+        })),
+    }
+}
+
+export async function recordInstall(slug: string) {
+    if (!isPublicSlug(slug)) {
+        throw Object.assign(new Error("Unknown app"), { status: 400 })
+    }
+    await pool.query(
+        `INSERT INTO app_metrics (slug, installs) VALUES ($1, 1)
+         ON CONFLICT (slug) DO UPDATE SET installs = app_metrics.installs + 1`,
+        [slug]
+    )
+    return getHubSnapshot()
 }
 
 export async function upsertGlobalUser(auth: AuthUser) {
@@ -251,7 +301,9 @@ export async function getDashboardForUser(globalUserId: number) {
     const codes = await pool.query(
         `SELECT code, source_app AS "sourceApp", created_at AS "createdAt"
          FROM referral_codes
-         WHERE global_user_id = $1 OR owner_email = $2 OR code = $3
+         WHERE code = $3
+            OR global_user_id = $1
+            OR (LOWER(owner_email) = LOWER($2) AND (global_user_id IS NULL OR global_user_id = $1))
          ORDER BY created_at ASC`,
         [globalUserId, user.email, user.global_code]
     )
@@ -321,13 +373,15 @@ export async function getDashboardForUser(globalUserId: number) {
         id: user.id,
         email: user.email,
         displayName: user.display_name,
-        pictureUrl: user.picture_url,
+        pictureUrl: safePictureUrl(user.picture_url) ?? null,
         globalCode: user.global_code,
         codes: codes.rows,
         linkedApps: links.rows,
         pointsEarned,
         pointsSpent,
-        pointsAvailable: Math.max(0, pointsEarned - pointsSpent),
+        pointsAvailable: spendablePoints(totalReferrals, pointsEarned, pointsSpent),
+        rewardsUnlocked: rewardsUnlocked(totalReferrals),
+        referralsRequired: REFERRALS_REQUIRED,
         totalReferrals,
         pendingReferrals,
         confirmedReferrals,
@@ -343,19 +397,37 @@ export async function linkAppAccount(
     appUid: string,
     referralCode?: string
 ) {
-    await pool.query(
-        `INSERT INTO app_account_links (global_user_id, source_app, app_uid, referral_code)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (global_user_id, source_app) DO UPDATE SET
-            app_uid = EXCLUDED.app_uid,
-            referral_code = COALESCE(EXCLUDED.referral_code, app_account_links.referral_code),
-            linked_at = NOW()`,
-        [globalUserId, sourceApp, appUid, referralCode ?? null]
-    )
-
+    const user = await getGlobalUserById(globalUserId)
     if (referralCode) {
-        const user = await getGlobalUserById(globalUserId)
-        await registerReferralCode(referralCode, sourceApp, globalUserId, user?.email)
+        const registered = await registerReferralCode(
+            referralCode,
+            sourceApp,
+            globalUserId,
+            user?.email
+        )
+        if (!registered.linked) {
+            throw Object.assign(new Error("Referral code is already linked to another account"), {
+                status: 403,
+            })
+        }
+    }
+
+    try {
+        await pool.query(
+            `INSERT INTO app_account_links (global_user_id, source_app, app_uid, referral_code)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (global_user_id, source_app) DO UPDATE SET
+                app_uid = EXCLUDED.app_uid,
+                referral_code = COALESCE(EXCLUDED.referral_code, app_account_links.referral_code),
+                linked_at = NOW()`,
+            [globalUserId, sourceApp, appUid, referralCode ?? null]
+        )
+    } catch (e: unknown) {
+        const err = e as { code?: string }
+        if (err.code === "23505") {
+            throw Object.assign(new Error("That app account is already linked"), { status: 409 })
+        }
+        throw e
     }
 
     return getDashboardForUser(globalUserId)
@@ -368,14 +440,33 @@ export async function registerReferralCode(
     ownerEmail?: string | null
 ) {
     const normalized = code.trim().toUpperCase()
-    await pool.query(
+    const ownerId = globalUserId ?? null
+    const email = ownerEmail?.toLowerCase() ?? null
+    // Never replace an existing owner. A new global_user_id is applied only
+    // while the row is unclaimed. source_app / owner_email follow the same rule.
+    const result = await pool.query(
         `INSERT INTO referral_codes (code, source_app, global_user_id, owner_email)
          VALUES ($1, $2, $3, $4)
          ON CONFLICT (code) DO UPDATE SET
-            source_app = EXCLUDED.source_app,
-            global_user_id = COALESCE(EXCLUDED.global_user_id, referral_codes.global_user_id),
-            owner_email = COALESCE(EXCLUDED.owner_email, referral_codes.owner_email)`,
-        [normalized, sourceApp, globalUserId ?? null, ownerEmail?.toLowerCase() ?? null]
+            source_app = CASE
+                WHEN referral_codes.global_user_id IS NULL
+                  OR referral_codes.global_user_id = EXCLUDED.global_user_id
+                THEN EXCLUDED.source_app
+                ELSE referral_codes.source_app
+            END,
+            global_user_id = CASE
+                WHEN referral_codes.global_user_id IS NULL THEN EXCLUDED.global_user_id
+                ELSE referral_codes.global_user_id
+            END,
+            owner_email = CASE
+                WHEN referral_codes.owner_email IS NULL THEN EXCLUDED.owner_email
+                WHEN referral_codes.global_user_id IS NOT NULL
+                  AND referral_codes.global_user_id = EXCLUDED.global_user_id
+                THEN referral_codes.owner_email
+                ELSE referral_codes.owner_email
+            END
+         RETURNING global_user_id`,
+        [normalized, sourceApp, ownerId, email]
     )
     await pool.query(
         `INSERT INTO referral_balances (referrer_code, points_earned, points_spent)
@@ -383,7 +474,9 @@ export async function registerReferralCode(
          ON CONFLICT (referrer_code) DO NOTHING`,
         [normalized]
     )
-    return { code: normalized, sourceApp }
+    const storedOwner = result.rows[0]?.global_user_id as number | null | undefined
+    const linked = ownerId == null || (storedOwner != null && Number(storedOwner) === ownerId)
+    return { code: normalized, sourceApp, linked }
 }
 
 export async function userOwnsCode(globalUserId: number, code: string): Promise<boolean> {
@@ -393,7 +486,11 @@ export async function userOwnsCode(globalUserId: number, code: string): Promise<
     if (user.global_code === normalized) return true
     const row = await pool.query(
         `SELECT 1 FROM referral_codes
-         WHERE code = $1 AND (global_user_id = $2 OR owner_email = $3)
+         WHERE code = $1
+           AND (
+                global_user_id = $2
+                OR (LOWER(owner_email) = LOWER($3) AND (global_user_id IS NULL OR global_user_id = $2))
+           )
          LIMIT 1`,
         [normalized, globalUserId, user.email]
     )
@@ -462,7 +559,9 @@ export async function getReferralStats(code: string) {
         totalReferrals,
         pointsEarned,
         pointsSpent,
-        pointsAvailable: Math.max(0, pointsEarned - pointsSpent),
+        pointsAvailable: spendablePoints(totalReferrals, pointsEarned, pointsSpent),
+        rewardsUnlocked: rewardsUnlocked(totalReferrals),
+        referralsRequired: REFERRALS_REQUIRED,
         pendingRewards,
         redeemedRewards,
         referralHistory: historyQuery.rows,
@@ -481,6 +580,14 @@ export async function createRedemption(code: string, rewardId: number, contactEm
     const client = await pool.connect()
     try {
         await client.query("BEGIN")
+
+        const referrals = await referralCount(client, normalized)
+        if (!rewardsUnlocked(referrals)) {
+            throw Object.assign(
+                new Error("Rewards stay locked until you have three referrals."),
+                { status: 403 }
+            )
+        }
 
         const rewardResult = await client.query(
             "SELECT id, points_cost, title FROM referral_rewards WHERE id = $1 FOR SHARE",
@@ -536,23 +643,29 @@ export async function createRedemption(code: string, rewardId: number, contactEm
 
 /**
  * Creates a pending or immediately confirmed referral depending on app rules.
- * For diabetic (confirmOn: signup), awards points immediately.
+ * Diabetic confirms on signup. Points are still withheld until three referrals
+ * already exist.
  */
 export async function createReferralEvent(
     referrerCode: string,
     referredEmail: string,
     deviceId: string,
-    sourceApp: string = "diabetic",
-    pointsAwarded: number = POINTS_PER_REFERRAL
+    sourceApp: string = "diabetic"
 ) {
     if (!isSourceApp(sourceApp)) {
         throw Object.assign(new Error("Unknown source app"), { status: 400 })
     }
     const rule = getRule(sourceApp)
     const status = rule.confirmOn === "signup" ? "confirmed" : "pending"
-    const awarded = status === "confirmed" ? rule.points : 0
 
-    return insertReferralEvent(referrerCode, referredEmail, deviceId, sourceApp, awarded, status)
+    return insertReferralEvent(
+        referrerCode,
+        referredEmail,
+        deviceId,
+        sourceApp,
+        status,
+        rule.points
+    )
 }
 
 async function insertReferralEvent(
@@ -560,8 +673,8 @@ async function insertReferralEvent(
     referredEmail: string,
     deviceId: string,
     sourceApp: string,
-    pointsAwarded: number,
-    status: "pending" | "confirmed"
+    status: "pending" | "confirmed",
+    rulePoints: number
 ) {
     const normalized = referrerCode.trim().toUpperCase()
     const client = await pool.connect()
@@ -578,6 +691,10 @@ async function insertReferralEvent(
                 code: "UNKNOWN_CODE",
             })
         }
+
+        const existingReferrals = await referralCount(client, normalized)
+        const pointsAwarded =
+            status === "confirmed" ? pointsForQualifyingEvent(existingReferrals, rulePoints) : 0
 
         const event = await client.query(
             `INSERT INTO referral_events
@@ -617,7 +734,8 @@ async function insertReferralEvent(
 
 /**
  * Trusted apps call this when a referred user meets the qualification event
- * (e.g. Sapient day_active, Adverts purchase).
+ * (e.g. Sapient profile_completed, Adverts purchase).
+ * Points are written only when the referrer already has three referrals.
  */
 export async function qualifyReferral(
     referrerCode: string,
@@ -656,6 +774,16 @@ export async function qualifyReferral(
     try {
         await client.query("BEGIN")
 
+        const codeCheck = await client.query("SELECT code FROM referral_codes WHERE code = $1", [
+            normalized,
+        ])
+        if (codeCheck.rows.length === 0) {
+            throw Object.assign(new Error("Unknown referral code"), {
+                status: 404,
+                code: "UNKNOWN_CODE",
+            })
+        }
+
         let existing = await client.query(
             `SELECT * FROM referral_events
              WHERE referrer_code = $1 AND referred_email = $2 AND source_app = $3
@@ -672,24 +800,34 @@ export async function qualifyReferral(
             )
         }
 
+        const existingReferrals = await referralCount(client, normalized)
+        const pointsAwarded = pointsForQualifyingEvent(existingReferrals, rule.points)
+
         if (existing.rows.length === 0) {
-            // First time seeing this qualification — insert confirmed
             const inserted = await client.query(
                 `INSERT INTO referral_events
                     (referrer_code, referred_email, device_id, source_app, points_awarded, status, confirmed_at)
                  VALUES ($1, $2, $3, $4, $5, 'confirmed', NOW()) RETURNING *`,
-                [normalized, email, deviceId, sourceApp, rule.points]
+                [normalized, email, deviceId, sourceApp, pointsAwarded]
             )
-            await client.query(
-                `INSERT INTO referral_balances (referrer_code, points_earned, points_spent)
-                 VALUES ($1, $2, 0)
-                 ON CONFLICT (referrer_code) DO UPDATE SET
-                    points_earned = referral_balances.points_earned + $2,
-                    updated_at = NOW()`,
-                [normalized, rule.points]
-            )
+            if (pointsAwarded > 0) {
+                await client.query(
+                    `INSERT INTO referral_balances (referrer_code, points_earned, points_spent)
+                     VALUES ($1, $2, 0)
+                     ON CONFLICT (referrer_code) DO UPDATE SET
+                        points_earned = referral_balances.points_earned + $2,
+                        updated_at = NOW()`,
+                    [normalized, pointsAwarded]
+                )
+            }
             await client.query("COMMIT")
-            return { success: true, status: "confirmed", pointsAwarded: rule.points, event: inserted.rows[0] }
+            return {
+                success: true,
+                status: "confirmed",
+                pointsAwarded,
+                rewardsUnlocked: rewardsUnlocked(existingReferrals + 1),
+                event: inserted.rows[0],
+            }
         }
 
         const row = existing.rows[0]
@@ -702,18 +840,25 @@ export async function qualifyReferral(
             `UPDATE referral_events
              SET status = 'confirmed', points_awarded = $1, confirmed_at = NOW()
              WHERE id = $2`,
-            [rule.points, row.id]
+            [pointsAwarded, row.id]
         )
-        await client.query(
-            `INSERT INTO referral_balances (referrer_code, points_earned, points_spent)
-             VALUES ($1, $2, 0)
-             ON CONFLICT (referrer_code) DO UPDATE SET
-                points_earned = referral_balances.points_earned + $2,
-                updated_at = NOW()`,
-            [normalized, rule.points]
-        )
+        if (pointsAwarded > 0) {
+            await client.query(
+                `INSERT INTO referral_balances (referrer_code, points_earned, points_spent)
+                 VALUES ($1, $2, 0)
+                 ON CONFLICT (referrer_code) DO UPDATE SET
+                    points_earned = referral_balances.points_earned + $2,
+                    updated_at = NOW()`,
+                [normalized, pointsAwarded]
+            )
+        }
         await client.query("COMMIT")
-        return { success: true, status: "confirmed", pointsAwarded: rule.points }
+        return {
+            success: true,
+            status: "confirmed",
+            pointsAwarded,
+            rewardsUnlocked: rewardsUnlocked(existingReferrals),
+        }
     } catch (e) {
         await client.query("ROLLBACK")
         throw e

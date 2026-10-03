@@ -1,16 +1,23 @@
 import React, { useState } from "react"
 import { NavLink, Link } from "react-router-dom"
+import { useAuth } from "../lib/auth"
 
 const Navbar: React.FC = () => {
     const [open, setOpen] = useState(false)
+    const { user, signOut } = useAuth()
+    const accountLabel = user?.displayName?.split(" ")[0] || "Account"
 
     const sections = [
         { name: "Products", path: "/products" },
-        { name: "Reward", path: "/reward" },
+        { name: "Earn", path: "/earn" },
+        { name: "Lists", path: "/lists" },
+        { name: "Quiz", path: "/quiz" },
+        { name: "Listings", path: "/listings" },
         { name: "Services", path: "/service" },
         { name: "About", path: "/about" },
         { name: "Careers", path: "/careers" },
         { name: "Blog", path: "/blog" },
+        { name: "Contact", path: "/contact" },
     ]
 
     return (
@@ -23,33 +30,51 @@ const Navbar: React.FC = () => {
                     Koliath
                 </Link>
 
-                <nav className="hidden md:flex items-center gap-1">
+                <nav className="hidden xl:flex items-center gap-0.5">
                     {sections.map((section) => (
                         <NavLink
                             key={section.name}
                             to={section.path}
                             className={({ isActive }) =>
-                                `px-3.5 py-2 text-sm transition-colors rounded-full ${
+                                `px-2.5 py-2 text-sm transition-colors rounded-full ${
                                     isActive
                                         ? "text-[var(--ink)] bg-black/[0.04]"
-                                        : "text-[var(--muted)] hover:text-[var(--ink)]"
+                                        : "text-[var(--ink)] hover:opacity-70"
                                 }`
                             }
                         >
                             {section.name}
                         </NavLink>
                     ))}
-                    <Link
-                        to="/reward"
-                        className="ml-3 text-sm px-4 py-2 rounded-full bg-[var(--ink)] text-white hover:opacity-90 transition-opacity"
-                    >
-                        Sign in
-                    </Link>
+                    {user ? (
+                        <>
+                            <Link
+                                to="/earn"
+                                className="ml-1 text-sm px-4 py-2 rounded-full border border-[var(--ink)] text-[var(--ink)] hover:bg-black/[0.04] whitespace-nowrap"
+                            >
+                                {accountLabel}
+                            </Link>
+                            <button
+                                type="button"
+                                onClick={signOut}
+                                className="text-sm px-3 py-2 rounded-full text-[var(--ink)] hover:opacity-70"
+                            >
+                                Sign out
+                            </button>
+                        </>
+                    ) : (
+                        <Link
+                            to="/login"
+                            className="ml-1 text-sm px-4 py-2 rounded-full border border-[var(--ink)] text-[var(--ink)] hover:bg-black/[0.04] whitespace-nowrap"
+                        >
+                            Login
+                        </Link>
+                    )}
                 </nav>
 
                 <button
                     type="button"
-                    className="md:hidden p-2 text-[var(--ink)]"
+                    className="xl:hidden p-2 text-[var(--ink)]"
                     aria-label="Menu"
                     onClick={() => setOpen((v) => !v)}
                 >
@@ -65,7 +90,7 @@ const Navbar: React.FC = () => {
             </div>
 
             {open && (
-                <div className="md:hidden border-t border-[var(--line)] bg-[var(--bg)] px-6 py-4 space-y-1">
+                <div className="xl:hidden border-t border-[var(--line)] bg-[var(--bg)] px-6 py-4 space-y-1">
                     {sections.map((section) => (
                         <NavLink
                             key={section.name}
@@ -73,13 +98,42 @@ const Navbar: React.FC = () => {
                             onClick={() => setOpen(false)}
                             className={({ isActive }) =>
                                 `block px-3 py-3 rounded-xl text-sm ${
-                                    isActive ? "bg-black/[0.04] text-[var(--ink)]" : "text-[var(--muted)]"
+                                    isActive ? "bg-black/[0.04] text-[var(--ink)]" : "text-[var(--ink)]"
                                 }`
                             }
                         >
                             {section.name}
                         </NavLink>
                     ))}
+                    {user ? (
+                        <>
+                            <Link
+                                to="/earn"
+                                onClick={() => setOpen(false)}
+                                className="block px-3 py-3 rounded-xl text-sm border border-[var(--ink)] text-center"
+                            >
+                                {accountLabel}
+                            </Link>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setOpen(false)
+                                    signOut()
+                                }}
+                                className="block w-full px-3 py-3 rounded-xl text-sm text-left"
+                            >
+                                Sign out
+                            </button>
+                        </>
+                    ) : (
+                        <Link
+                            to="/login"
+                            onClick={() => setOpen(false)}
+                            className="block px-3 py-3 rounded-xl text-sm border border-[var(--ink)] text-center"
+                        >
+                            Login
+                        </Link>
+                    )}
                 </div>
             )}
         </header>

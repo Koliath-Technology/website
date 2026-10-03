@@ -156,9 +156,9 @@ const ServicesPage: React.FC = () => {
                     <p className="text-xl text-gray-400 mb-8 animate-fadeIn delay-200">
                         Let's discuss how our AI expertise can drive real outcomes for your business.
                     </p>
-                    <button className="bg-blue-600 text-slate-50 px-10 py-4 font-semibold rounded-md hover:bg-slate-800 transition-all animate-fadeIn delay-100">
-                        Get in Touch
-                    </button>
+                    <p className="text-lg text-gray-300 animate-fadeIn delay-100">
+                        Contact is by email. The address is coming.
+                    </p>
                 </div>
             </section>
 

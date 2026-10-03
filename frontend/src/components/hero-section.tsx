@@ -32,9 +32,9 @@ export function HeroSection() {
                     initial={{ opacity: 0, y: 16 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5, delay: 0.08 }}
-                    className="text-xl md:text-2xl text-[var(--ink)]/85 max-w-xl mb-4 font-medium"
+                    className="text-xl md:text-2xl text-[var(--ink)] max-w-xl mb-4 font-medium"
                 >
-                    AI products for dating, ads, and health — built to ship.
+                    A product studio and the hub for its apps.
                 </motion.h1>
 
                 <motion.p
@@ -43,8 +43,9 @@ export function HeroSection() {
                     transition={{ duration: 0.5, delay: 0.14 }}
                     className="text-base md:text-lg text-[var(--muted)] max-w-lg mb-10 leading-relaxed"
                 >
-                    From Sapient and Adverts to Diabetic Buddy — one studio, one rewards
-                    identity at koliath.in/reward.
+                    Browse and download Sapient, Adverts, and Diabetic Buddy without an account.
+                    Sign in only for points or a referral link. You get no reward points until you
+                    have three referrals, and each app has its own use check.
                 </motion.p>
 
                 <motion.div
@@ -69,7 +70,7 @@ export function HeroSection() {
                         variant="outline"
                         className="rounded-full px-8 h-12 border-[var(--ink)]/20 bg-white/50 backdrop-blur"
                     >
-                        <Link to="/reward">Open Rewards</Link>
+                        <Link to="/earn">Earn points</Link>
                     </Button>
                 </motion.div>
             </div>

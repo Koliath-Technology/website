@@ -3,7 +3,24 @@
 */env
 node_modules/
 **/node_modules/
+
+# Secrets and local env. Example files with placeholders stay tracked.
 .env
 .env.*
+**/.env
+**/.env.*
 !.env.example
+!**/.env.example
 
+# Build output is produced by `npm run build`. Do not commit it.
+backend/dist/
+frontend/dist/
+*.tsbuildinfo
+
+.DS_Store
+
+# Firebase secret files. Public web config belongs in env placeholders, not JSON.
+**/google-services.json
+**/GoogleService-Info.plist
+**/*firebase-adminsdk*.json
+**/serviceAccount*.json

@@ -3,11 +3,10 @@
 import { useState } from "react"
 import { motion } from "framer-motion"
 import { Card } from "../components/ui/card"
-import { Button } from "../components/ui/button"
 import { Input } from "../components/ui/input"
 import { Badge } from "../components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select"
-import { Search, MapPin, Clock, Briefcase, ArrowRight } from "lucide-react"
+import { Search, MapPin, Clock, Briefcase } from "lucide-react"
 
 // Mock job data
 const jobs = [
@@ -259,12 +258,6 @@ export function JobListings() {
                       </div>
                     </div>
 
-                    <div className="lg:ml-6">
-                      <Button className="w-full lg:w-auto bg-primary hover:bg-primary/90 text-primary-foreground">
-                        Apply Now
-                        <ArrowRight className="ml-2 w-4 h-4" />
-                      </Button>
-                    </div>
                   </div>
                 </Card>
               </motion.div>

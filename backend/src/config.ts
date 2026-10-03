@@ -17,7 +17,10 @@ export const config = {
         "DATABASE_URL",
         isProd ? undefined : "postgres://postgres:postgres@localhost:5433/mydb"
     ),
-    googleClientId: process.env.GOOGLE_CLIENT_ID ?? "",
+    /** Firebase Admin. All three are required before a session or protected route succeeds. */
+    firebaseProjectId: process.env.FIREBASE_PROJECT_ID ?? "",
+    firebaseClientEmail: process.env.FIREBASE_CLIENT_EMAIL ?? "",
+    firebasePrivateKey: process.env.FIREBASE_PRIVATE_KEY ?? "",
     /** Shared secret for trusted app backends (Sapient, Adverts, Diabetic) to post qualification events. */
     appWebhookSecret: process.env.APP_WEBHOOK_SECRET ?? "",
     corsOrigins: (process.env.CORS_ORIGINS ?? "http://localhost:5173,https://koliath.in,https://www.koliath.in")
@@ -25,6 +28,11 @@ export const config = {
         .map((s) => s.trim())
         .filter(Boolean),
     cookieSecure: isProd,
+    /**
+     * Remote Postgres defaults to accept Railway's proxy certificate.
+     * Set DATABASE_SSL_REJECT_UNAUTHORIZED=true when the certificate is trusted.
+     */
+    databaseSslRejectUnauthorized: process.env.DATABASE_SSL_REJECT_UNAUTHORIZED === "true",
 }
 
 export const POINTS_PER_REFERRAL = 100
