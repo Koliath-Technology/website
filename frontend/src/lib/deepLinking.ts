@@ -4,7 +4,6 @@
 
 export const initBranch = () => {
     // branch.init('key_live_YOUR_BRANCH_KEY_HERE', (err, data) => { ... });
-    console.log("Branch.io initialized (placeholder)");
 };
 
 export const generateBranchLink = async (referralCode: string): Promise<string> => {
@@ -27,7 +26,6 @@ export const generateBranchLink = async (referralCode: string): Promise<string> 
     */
     
     // Fallback/Placeholder: return a simulated Branch link or direct deep link.
-    console.log("Generating Branch link for code:", referralCode);
     return `https://diabeticbuddy.app.link/referral?code=${encodeURIComponent(referralCode)}`;
 };
 

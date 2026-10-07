@@ -32,7 +32,9 @@ Set these on the Railway service before the first deploy. Railway exposes them t
 | `VITE_FIREBASE_MESSAGING_SENDER_ID` | Optional public web field. Build time. |
 | `VITE_FIREBASE_STORAGE_BUCKET` | Optional public web field. Build time. |
 | `APP_WEBHOOK_SECRET` | A long random string you generate and store in Railway. Not in git. |
-| `CORS_ORIGINS` | `https://koliath.in,https://www.koliath.in` |
+| `CORS_ORIGINS` | `https://koliath.in,https://www.koliath.in`. Production ignores `http` and localhost entries. |
+| `ACCOUNT_CREATE_LIMIT` | Optional. New accounts per IP. Default `5`. Out-of-range values use the default. |
+| `ACCOUNT_CREATE_WINDOW_MS` | Optional. Window for that limit. Default `3600000` (one hour). |
 | `VITE_API_BASE` | Leave unset. The browser calls same-origin `/api`. |
 
 `PORT` is set by Railway. Do not hardcode it.

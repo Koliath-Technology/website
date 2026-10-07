@@ -6,6 +6,7 @@ import { config } from "./config"
 import { firebaseCredentialStatus, normalizePrivateKey } from "./firebaseCredentials"
 import { logError } from "./redact"
 import { secretsEqual } from "./secrets"
+import { sessionCookieOptions } from "./securityPolicy"
 
 const MAX_ID_TOKEN_LENGTH = 8192
 
@@ -139,13 +140,11 @@ export function csrfHeaderValid(req: Request): boolean {
 }
 
 function cookieOptions(httpOnly: boolean, maxAge?: number) {
-    return {
+    return sessionCookieOptions({
         httpOnly,
         secure: config.cookieSecure,
-        sameSite: "lax" as const,
-        path: "/",
         ...(maxAge !== undefined ? { maxAge } : {}),
-    }
+    })
 }
 
 /** Browser session: httpOnly Google token plus a readable CSRF cookie. */

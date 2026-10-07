@@ -1,9 +1,9 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { secretsEqual } from "./secrets"
-import { redact } from "./redact"
-import { databasePoolConfig } from "./pgSsl"
-import { firebaseCredentialStatus, normalizePrivateKey } from "./firebaseCredentials"
+import { secretsEqual } from "./secrets.ts"
+import { redact } from "./redact.ts"
+import { databasePoolConfig } from "./pgSsl.ts"
+import { firebaseCredentialStatus, normalizePrivateKey } from "./firebaseCredentials.ts"
 
 test("secretsEqual matches identical values and rejects others", () => {
     assert.equal(secretsEqual("same-secret", "same-secret"), true)
