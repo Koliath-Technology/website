@@ -3,7 +3,7 @@
     "version": "1.0.0",
     "main": "index.js",
     "scripts": {
-        "test": "echo \"Error: no test specified\" && exit 1",
+        "test": "tsc -b --pretty false && node --experimental-strip-types --test src/*.test.ts",
         "build": "tsc -b",
         "start": "node dist/index.js",
         "dev": "npm run build && npm run start"

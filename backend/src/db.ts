@@ -233,6 +233,14 @@ export async function recordInstall(slug: string) {
     return getHubSnapshot()
 }
 
+export async function globalUserExists(auth: AuthUser): Promise<boolean> {
+    const result = await pool.query(
+        `SELECT 1 FROM global_users WHERE google_sub = $1 OR email = $2 LIMIT 1`,
+        [auth.googleSub, auth.email.toLowerCase()]
+    )
+    return result.rows.length > 0
+}
+
 export async function upsertGlobalUser(auth: AuthUser) {
     const existing = await pool.query(
         `SELECT * FROM global_users WHERE google_sub = $1 OR email = $2 LIMIT 1`,

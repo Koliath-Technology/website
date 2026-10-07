@@ -89,8 +89,11 @@ Deploy one Railway service. Steps, env vars, and the Cloudflare DNS note are in 
 ## Security practices included
 
 - Firebase ID tokens from Google sign-in verified with Firebase Admin `verifyIdToken`
-- Browser session is an httpOnly cookie; mobile apps keep `Authorization: Bearer`
-- Helmet (including CSP), CORS allowlist, JSON body size limit, rate limits
+- Browser session is an httpOnly, `SameSite=Lax` cookie (`Secure` in production); mobile apps keep `Authorization: Bearer`
+- Helmet: CSP, `X-Content-Type-Options: nosniff`, framing denied. HSTS is sent unless `NODE_ENV=development` (Railway terminates TLS)
+- CORS allowlist with credentials. In production, non-HTTPS and localhost origins are dropped. Unset `CORS_ORIGINS` then defaults to `https://koliath.in` and `https://www.koliath.in`
+- New Google accounts are capped per IP (`ACCOUNT_CREATE_LIMIT`, `ACCOUNT_CREATE_WINDOW_MS`; default 5 per hour). The three-referral reward gate is unchanged
+- `/admin` redirects to the separate admin host. This service does not mount `/api/admin` or debug routes. `GET /health` stays the healthcheck
 - Redeem / stats require authenticated ownership of the global account
 - Qualification and register endpoints require the webhook secret unless `NODE_ENV=development`
 - Env-based DB URL (no hardcoded production credentials)

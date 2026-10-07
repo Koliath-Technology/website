@@ -1,4 +1,6 @@
 import "dotenv/config"
+import { accountCreateSettings } from "./accountVelocity"
+import { resolveCorsOrigins } from "./securityPolicy"
 
 function required(name: string, fallback?: string): string {
     const value = process.env[name] ?? fallback
@@ -9,6 +11,14 @@ function required(name: string, fallback?: string): string {
 }
 
 const isProd = process.env.NODE_ENV === "production"
+const corsOrigins = resolveCorsOrigins(process.env.CORS_ORIGINS, process.env.NODE_ENV)
+const accountCreate = accountCreateSettings(process.env)
+
+if (isProd && corsOrigins.length === 0) {
+    console.error(
+        "CORS allowlist is empty after production filtering. Browser credentialed requests are denied."
+    )
+}
 
 export const config = {
     port: Number(process.env.PORT ?? 3000),
@@ -23,10 +33,10 @@ export const config = {
     firebasePrivateKey: process.env.FIREBASE_PRIVATE_KEY ?? "",
     /** Shared secret for trusted app backends (Sapient, Adverts, Diabetic) to post qualification events. */
     appWebhookSecret: process.env.APP_WEBHOOK_SECRET ?? "",
-    corsOrigins: (process.env.CORS_ORIGINS ?? "http://localhost:5173,https://koliath.in,https://www.koliath.in")
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean),
+    corsOrigins,
+    /** New global accounts per IP. Does not change referral qualification. */
+    accountCreateLimit: accountCreate.limit,
+    accountCreateWindowMs: accountCreate.windowMs,
     cookieSecure: isProd,
     /**
      * Remote Postgres defaults to accept Railway's proxy certificate.

@@ -39,6 +39,9 @@ export default defineConfig(({ mode }) => {
                 "@": path.resolve(process.cwd(), "src"),
             },
         },
+        build: {
+            sourcemap: false,
+        },
         server: {
             proxy: {
                 "/api": {
